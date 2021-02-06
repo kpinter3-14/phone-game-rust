@@ -56,7 +56,6 @@ where
         &mut gcontext.want_to_quit,
         &mut gcontext.window_size,
         &mut gcontext.pressed_keys,
-        &mut state,
         &event,
       );
       state = handle_event(state, &event);
@@ -75,11 +74,10 @@ where
   }
 }
 
-fn handle_system_events<S>(
+fn handle_system_events(
   want_to_quit: &mut bool,
   window_size: &mut V2U,
   pressed_keys: &mut HashSet<sdl2::keyboard::Keycode>,
-  state: &mut S,
   event: &sdl2::event::Event,
 ) {
   match *event {

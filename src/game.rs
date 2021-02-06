@@ -88,6 +88,7 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
   state.ball_rect.y += state.ball_dir.y;
   if state.ball_rect.x < 0 {
     // TODO game over
+    state = State::new();
   }
   if state.ball_rect.x + BALL_SIZE as i32 >= 84 {
     state.ball_dir.x = -BALL_SPEED;

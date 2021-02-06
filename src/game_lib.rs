@@ -23,9 +23,9 @@ use types::*;
 pub fn run<S, I, U, R, H>(state: S, init: I, update: U, render: R, handle_event: H)
 where
   I: Fn(&mut GContext),
-  U: Fn(&mut S, i32),
+  U: Fn(S, i32) -> S,
   R: Fn(&mut GContext, &S),
-  H: Fn(&mut S, &sdl2::event::Event),
+  H: Fn(S, &sdl2::event::Event) -> S,
 {
   const SCREEN_SIZE: V2U = V2U::new(84, 48);
   const SCALE: u32 = 16;
@@ -37,9 +37,9 @@ where
 
 fn game_loop<S, U, R, H>(gcontext: &mut GContext, state: S, update: U, render: R, handle_event: H)
 where
-  U: Fn(&mut S, i32),
+  U: Fn(S, i32) -> S,
   R: Fn(&mut GContext, &S),
-  H: Fn(&mut S, &sdl2::event::Event),
+  H: Fn(S, &sdl2::event::Event) -> S,
 {
   const TICK_INTERVAL: u32 = 50;
   let mut state = state;
@@ -59,13 +59,13 @@ where
         &mut state,
         &event,
       );
-      handle_event(&mut state, &event);
+      state = handle_event(state, &event);
     }
 
     ms_until_game_tick += delta_ticks;
     while ms_until_game_tick > TICK_INTERVAL {
       ms_until_game_tick -= TICK_INTERVAL;
-      update(&mut state, game_tick_counter);
+      state = update(state, game_tick_counter);
       game_tick_counter += 1;
     }
 

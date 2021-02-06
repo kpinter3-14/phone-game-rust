@@ -70,7 +70,8 @@ impl State {
   }
 }
 
-pub fn update(state: &mut State, game_tick_counter: i32) {
+pub fn update(state: State, game_tick_counter: i32) -> State {
+  let mut state = state;
   // update paddle
   state.paddle_rect.y += state.paddle_dir.y;
   if state.paddle_rect.y < 1 {
@@ -125,6 +126,8 @@ pub fn update(state: &mut State, game_tick_counter: i32) {
     .filter(|&fruit| ball_rect.intersection(*fruit).is_none() && fruit.y < 50)
     .map(|x| *x)
     .collect();
+
+  state
 }
 
 pub fn render(gcontext: &mut GContext, state: &State) {
@@ -141,19 +144,18 @@ pub fn render(gcontext: &mut GContext, state: &State) {
   gcontext.draw_text(74, 1, &state.score.to_string());
 }
 
-pub fn handle_event(state: &mut State, event: &sdl2::event::Event) {
+pub fn handle_event(state: State, event: &sdl2::event::Event) -> State {
   match *event {
     Event::KeyDown {
       keycode: Some(keycode),
       ..
-    } => {
-      handle_keypress(state, keycode);
-    }
-    _ => {}
+    } => handle_keypress(state, keycode),
+    _ => state
   }
 }
 
-fn handle_keypress(state: &mut State, keycode: sdl2::keyboard::Keycode) {
+fn handle_keypress(state: State, keycode: sdl2::keyboard::Keycode) -> State {
+  let mut state = state;
   match keycode {
     sdl2::keyboard::Keycode::W => {
       if state.paddle_dir.y >= 0 {
@@ -171,4 +173,5 @@ fn handle_keypress(state: &mut State, keycode: sdl2::keyboard::Keycode) {
     }
     _ => {}
   }
+  state
 }

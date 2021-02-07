@@ -2,6 +2,7 @@ use crate::game_lib::types::*;
 use crate::game_lib::*;
 use rand::prelude::*;
 use sdl2::event::Event;
+use cgmath::prelude::*;
 
 pub fn init(gcontext: &mut GContext) {
   #[rustfmt::skip]
@@ -45,12 +46,13 @@ pub struct State {
   score: i32,
 }
 
-const BALL_SPEED: f32 = 1.0;
+const BALL_SPEED: f32 = 1.4;
 const BALL_SIZE: u32 = 6;
 const FRUIT_SPEED: i32 = 2;
 const FRUIT_SIZE: u32 = 8;
 const PADDLE_SPEED: i32 = 2;
 const PADDLE_SIZE: V2U = V2U::new(3, 10);
+const D_MAX: f32 = BALL_SIZE as f32 / 2.0 + PADDLE_SIZE.y as f32 / 2.0;
 
 impl State {
   pub fn new() -> State {
@@ -61,7 +63,7 @@ impl State {
       paddle_dir: 0.0,
 
       ball_pos: P2F::new(0.0, 20.0),
-      ball_dir: V2F::new(BALL_SPEED, BALL_SPEED),
+      ball_dir: V2F::new(1.0, 1.0).normalize() * BALL_SPEED,
 
       fruits: Vec::new(),
       score: 0,
@@ -90,13 +92,13 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
     state = State::new();
   }
   if state.ball_pos.x + BALL_SIZE as f32 >= 84.0 {
-    state.ball_dir.x = -BALL_SPEED;
+    state.ball_dir.x *= -1.0;
   }
   if state.ball_pos.y < 0.0 {
-    state.ball_dir.y = BALL_SPEED;
+    state.ball_dir.y *= -1.0;
   }
   if state.ball_pos.y + BALL_SIZE as f32 >= 48.0 {
-    state.ball_dir.y = -BALL_SPEED;
+    state.ball_dir.y *= -1.0;
   }
   let ball_rect = Rect::new(
     state.ball_pos.x,
@@ -111,7 +113,10 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
     PADDLE_SIZE.y as f32,
   );
   if paddle_rect.intersects(&ball_rect) {
-    state.ball_dir.x = BALL_SPEED;
+    let paddle_center = state.paddle_pos.x + PADDLE_SIZE.x as f32 / 2.0;
+    let ball_center = state.ball_pos.x + BALL_SIZE as f32 / 2.0;
+    let d = ball_center - paddle_center;
+    state.ball_dir = (state.ball_dir + V2F::new(2.0, d / D_MAX)).normalize() * BALL_SPEED;
   }
 
   // update fruits

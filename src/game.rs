@@ -1,8 +1,8 @@
 use crate::game_lib::types::*;
 use crate::game_lib::*;
+use cgmath::prelude::*;
 use rand::prelude::*;
 use sdl2::event::Event;
-use cgmath::prelude::*;
 
 pub fn init(gcontext: &mut GContext) {
   #[rustfmt::skip]
@@ -31,6 +31,32 @@ pub fn init(gcontext: &mut GContext) {
       " ##     ",
     ],
   );
+  #[rustfmt::skip]
+  gcontext.add_sprite(
+    "gem",
+    vec![
+      "        ",
+      "   ##   ",
+      "  #  #  ",
+      " # #  # ",
+      "########",
+      " #  # # ",
+      "  #  #  ",
+      "   ##   ",
+    ],
+  );
+}
+
+#[derive(Copy, Clone)]
+enum ItemType {
+  Cherry,
+  Gem,
+}
+
+#[derive(Copy, Clone)]
+struct Item {
+  item_type: ItemType,
+  rect: Rect,
 }
 
 pub struct State {
@@ -42,14 +68,14 @@ pub struct State {
   ball_pos: P2F,
   ball_dir: V2F,
 
-  fruits: Vec<Rect>,
+  items: Vec<Item>,
   score: i32,
 }
 
 const BALL_SPEED: f32 = 1.4;
 const BALL_SIZE: u32 = 6;
-const FRUIT_SPEED: i32 = 2;
-const FRUIT_SIZE: u32 = 8;
+const ITEM_SPEED: i32 = 2;
+const ITEM_SIZE: u32 = 8;
 const PADDLE_SPEED: i32 = 2;
 const PADDLE_SIZE: V2U = V2U::new(3, 10);
 const D_MAX: f32 = BALL_SIZE as f32 / 2.0 + PADDLE_SIZE.y as f32 / 2.0;
@@ -65,7 +91,7 @@ impl State {
       ball_pos: P2F::new(0.0, 20.0),
       ball_dir: V2F::new(1.0, 1.0).normalize() * BALL_SPEED,
 
-      fruits: Vec::new(),
+      items: Vec::new(),
       score: 0,
     }
   }
@@ -85,8 +111,7 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
   }
 
   // update ball
-  state.ball_pos.x += state.ball_dir.x;
-  state.ball_pos.y += state.ball_dir.y;
+  state.ball_pos += state.ball_dir;
   if state.ball_pos.x < 0.0 {
     // TODO game over
     state = State::new();
@@ -119,27 +144,43 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
     state.ball_dir = (state.ball_dir + V2F::new(2.0, d / D_MAX)).normalize() * BALL_SPEED;
   }
 
-  // update fruits
+  // update items
   if game_tick_counter % 14 == 0 {
-    state.fruits.push(Rect::new(
-      state.rng.gen_range(10..80) as f32,
-      -5.0,
-      FRUIT_SIZE as f32,
-      FRUIT_SIZE as f32,
-    ));
+    state.items.push(Item {
+      item_type: if state.rng.gen_range(0..10) == 0 {
+        ItemType::Gem
+      } else {
+        ItemType::Cherry
+      },
+      rect: Rect::new(
+        state.rng.gen_range(10..80) as f32,
+        -5.0,
+        ITEM_SIZE as f32,
+        ITEM_SIZE as f32,
+      ),
+    });
   }
-  for fruit in &mut state.fruits {
-    fruit.y += FRUIT_SPEED as f32;
+  for item in &mut state.items {
+    item.rect.y += ITEM_SPEED as f32;
   }
   state.score += state
-    .fruits
+    .items
     .iter()
-    .filter(|&fruit| ball_rect.intersects(fruit))
-    .count() as i32;
-  state.fruits = state
-    .fruits
+    .map(|&item| {
+      if ball_rect.intersects(&item.rect) {
+        match item.item_type {
+          ItemType::Cherry => 1,
+          ItemType::Gem => 5,
+        }
+      } else {
+        0
+      }
+    })
+    .sum::<i32>();
+  state.items = state
+    .items
     .iter()
-    .filter(|&fruit| !ball_rect.intersects(fruit) && fruit.y < 50.0)
+    .filter(|&item| !ball_rect.intersects(&item.rect) && item.rect.y < 50.0)
     .map(|x| *x)
     .collect();
 
@@ -147,8 +188,12 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
 }
 
 pub fn render(gcontext: &mut GContext, state: &State) {
-  for fruit in &state.fruits {
-    gcontext.draw_sprite(fruit.x as i32, fruit.y as i32, "cherry");
+  for fruit in &state.items {
+    let item_name = match fruit.item_type {
+      ItemType::Cherry => "cherry",
+      ItemType::Gem => "gem",
+    };
+    gcontext.draw_sprite(fruit.rect.x as i32, fruit.rect.y as i32, item_name);
   }
   gcontext.draw_sprite(state.ball_pos.x as i32, state.ball_pos.y as i32, "ball");
   gcontext.draw_dark_rect(
@@ -157,7 +202,7 @@ pub fn render(gcontext: &mut GContext, state: &State) {
     PADDLE_SIZE.x,
     PADDLE_SIZE.y,
   );
-  gcontext.draw_text(74, 1, &state.score.to_string());
+  gcontext.draw_text(84 - 5 * 3, 1, &state.score.to_string());
 }
 
 pub fn handle_event(state: State, event: &sdl2::event::Event) -> State {

@@ -12,7 +12,7 @@ rand = "0.8.2"
 [dependencies.sdl2]
 version = "0.34.3"
 default-features = false
-features = ["image", "unsafe_textures"]
+features = ["unsafe_textures"]
 
 [dependencies.cgmath]
 version = "0.18.0"

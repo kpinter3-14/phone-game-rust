@@ -147,7 +147,6 @@ impl<'a> GContext<'a> {
   pub fn new(screen_size: V2U, scale: u32) -> GContext<'a> {
     let sdl_context = sdl2::init().unwrap();
     let event_pump = sdl_context.event_pump().unwrap();
-    let _sdl_image_context = sdl2::image::init(sdl2::image::InitFlag::PNG).unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let timer_subsystem = sdl_context.timer().unwrap();
     let window_size = screen_size * scale;

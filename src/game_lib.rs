@@ -40,56 +40,112 @@ pub mod types {
 
 use types::*;
 
-pub fn run<S, I, U, R, H>(scale: u32, state: S, init: I, update: U, render: R, handle_event: H)
-where
+pub fn run<S: 'static, I, U: 'static, R: 'static, H: 'static>(
+  scale: u32,
+  state: S,
+  init: I,
+  update: U,
+  render: R,
+  handle_event: H,
+) where
   I: Fn(&mut GContext),
-  U: Fn(S, &KeyStatus, i32) -> S,
+  U: Fn(&mut S, &KeyStatus, u32),
   R: Fn(&mut GContext, &S),
-  H: Fn(S, &sdl2::event::Event) -> S,
+  H: Fn(&mut S, &sdl2::event::Event),
 {
-  const SCREEN_SIZE: V2U = V2U::new(84, 48);
-  let mut gcontext = GContext::new(SCREEN_SIZE, scale);
-  init(&mut gcontext);
-
-  game_loop(&mut gcontext, state, update, render, handle_event);
+  let game = Game::new(scale, state, init, update, render, handle_event);
+  emscripten_main_loop::run(game);
 }
 
-fn game_loop<S, U, R, H>(gcontext: &mut GContext, state: S, update: U, render: R, handle_event: H)
+pub struct Game<'a, S, U, R, H>
 where
-  U: Fn(S, &KeyStatus, i32) -> S,
+  U: Fn(&mut S, &KeyStatus, u32),
   R: Fn(&mut GContext, &S),
-  H: Fn(S, &sdl2::event::Event) -> S,
+  H: Fn(&mut S, &sdl2::event::Event),
 {
-  const TICK_INTERVAL: u32 = 50;
-  let mut state = state;
-  let mut ms_since_start_last_frame = 0;
-  let mut ms_until_game_tick = 0;
-  let mut game_tick_counter = 0;
-  while !gcontext.want_to_quit {
-    let ms_since_start = gcontext.timer_subsystem.ticks();
-    let delta_ticks = ms_since_start - ms_since_start_last_frame;
-    ms_since_start_last_frame = ms_since_start;
+  gcontext: GContext<'a>,
+  state: S,
+  update: U,
+  render: R,
+  handle_event: H,
+}
 
-    for event in gcontext.event_pump.poll_iter() {
+const TICK_INTERVAL: u32 = 50;
+
+impl<'a, S, U, R, H> Game<'a, S, U, R, H>
+where
+  U: Fn(&mut S, &KeyStatus, u32),
+  R: Fn(&mut GContext, &S),
+  H: Fn(&mut S, &sdl2::event::Event),
+{
+  pub fn new<I>(
+    scale: u32,
+    state: S,
+    init: I,
+    update: U,
+    render: R,
+    handle_event: H,
+  ) -> Game<'a, S, U, R, H>
+  where
+    I: Fn(&mut GContext),
+  {
+    const SCREEN_SIZE: V2U = V2U::new(84, 48);
+    let mut gcontext = GContext::new(SCREEN_SIZE, scale);
+    init(&mut gcontext);
+    Game {
+      gcontext,
+      state,
+      update,
+      render,
+      handle_event,
+    }
+  }
+
+  pub fn game_loop(&mut self) {
+    let ms_since_start = self.gcontext.timer_subsystem.ticks();
+    let delta_ticks = ms_since_start - self.gcontext.ms_since_start_last_frame;
+    self.gcontext.ms_since_start_last_frame = ms_since_start;
+
+    for event in self.gcontext.event_pump.poll_iter() {
       handle_system_events(
-        &mut gcontext.want_to_quit,
-        &mut gcontext.window_size,
-        &mut gcontext.key_status,
+        &mut self.gcontext.want_to_quit,
+        &mut self.gcontext.window_size,
+        &mut self.gcontext.key_status,
         &event,
       );
-      state = handle_event(state, &event);
+      (self.handle_event)(&mut self.state, &event);
     }
 
-    ms_until_game_tick += delta_ticks;
-    while ms_until_game_tick > TICK_INTERVAL {
-      ms_until_game_tick -= TICK_INTERVAL;
-      state = update(state, &gcontext.key_status, game_tick_counter);
-      game_tick_counter += 1;
+    self.gcontext.ms_until_game_tick += delta_ticks;
+    while self.gcontext.ms_until_game_tick > TICK_INTERVAL {
+      self.gcontext.ms_until_game_tick -= TICK_INTERVAL;
+      (self.update)(
+        &mut self.state,
+        &self.gcontext.key_status,
+        self.gcontext.game_tick_counter,
+      );
+      self.gcontext.game_tick_counter += 1;
     }
 
-    gcontext.reset_screen();
-    render(gcontext, &mut state);
-    gcontext.present();
+    self.gcontext.reset_screen();
+    (self.render)(&mut self.gcontext, &mut self.state);
+    self.gcontext.present();
+  }
+}
+
+impl<'a, S, U, R, H> emscripten_main_loop::MainLoop for Game<'a, S, U, R, H>
+where
+  U: Fn(&mut S, &KeyStatus, u32),
+  R: Fn(&mut GContext, &S),
+  H: Fn(&mut S, &sdl2::event::Event),
+{
+  fn main_loop(&mut self) -> emscripten_main_loop::MainLoopEvent {
+    if self.gcontext.want_to_quit {
+      emscripten_main_loop::MainLoopEvent::Terminate
+    } else {
+      self.game_loop();
+      emscripten_main_loop::MainLoopEvent::Continue
+    }
   }
 }
 
@@ -101,6 +157,7 @@ fn handle_system_events(
 ) {
   match *event {
     Event::Quit { .. } => *want_to_quit = true,
+    #[cfg(not(target_os = "emscripten"))]
     Event::Window {
       win_event: sdl2::event::WindowEvent::Resized(w, h),
       ..
@@ -146,6 +203,10 @@ impl KeyStatus {
 }
 
 pub struct GContext<'a> {
+  pub ms_since_start_last_frame: u32,
+  pub ms_until_game_tick: u32,
+  pub game_tick_counter: u32,
+
   pub event_pump: sdl2::EventPump,
   pub texture_creator: sdl2::render::TextureCreator<sdl2::video::WindowContext>,
   pub screen_buffer: sdl2::render::Texture,
@@ -213,6 +274,9 @@ impl<'a> GContext<'a> {
     let font_sprite = surface_from_strvec(FONT_DATA);
 
     GContext {
+      ms_since_start_last_frame: 0,
+      ms_until_game_tick: 0,
+      game_tick_counter: 0,
       event_pump,
       timer_subsystem,
       texture_creator,

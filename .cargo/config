@@ -2,3 +2,10 @@
 rustflags = [
   "-C", "link-arg=-Wl,-subsystem,windows",
 ]
+
+[target.asmjs-unknown-emscripten]
+rustflags = [
+    "-C", "link-arg=-s", "-C", "link-arg=USE_SDL=2",
+    "-C", "link-arg=--shell-file", "-C", "link-arg=static/index.html",
+    "-C", "link-arg=-o", "-C", "link-arg=target/asmjs-unknown-emscripten/release/build.html",
+]

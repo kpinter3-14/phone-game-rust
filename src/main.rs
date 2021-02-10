@@ -136,7 +136,7 @@ const D_MAX: f32 = BALL_SIZE as f32 / 2.0 + PADDLE_SIZE.y as f32 / 2.0;
 const COIN_LIFETIME: u32 = 100;
 const COIN_FLASH_THRESHOLD: u32 = 20;
 
-#[derive(PartialEq)]
+#[derive(Copy, Clone, PartialEq)]
 pub enum ControlScheme {
   Hold,
   Toggle,
@@ -165,8 +165,7 @@ impl State {
   }
 }
 
-pub fn update(state: State, key_status: &KeyStatus, game_tick_counter: i32) -> State {
-  let mut state = state;
+pub fn update(state: &mut State, key_status: &KeyStatus, game_tick_counter: u32) {
   // update paddle
   if state.control_scheme == ControlScheme::Hold {
     if key_status.is_key_pressed(sdl2::keyboard::Keycode::W) {
@@ -191,7 +190,7 @@ pub fn update(state: State, key_status: &KeyStatus, game_tick_counter: i32) -> S
   state.ball_pos += state.ball_dir;
   if state.ball_pos.x < 0.0 {
     // TODO game over
-    state = State::new(state.control_scheme);
+    *state = State::new(state.control_scheme);
   }
   if state.ball_pos.x + BALL_SIZE as f32 >= 84.0 {
     state.ball_pos.x = 84.0 - BALL_SIZE as f32;
@@ -309,8 +308,6 @@ pub fn update(state: State, key_status: &KeyStatus, game_tick_counter: i32) -> S
     })
     .map(|x| *x)
     .collect();
-
-  state
 }
 
 pub fn render(gcontext: &mut GContext, state: &State) {
@@ -347,18 +344,17 @@ pub fn render(gcontext: &mut GContext, state: &State) {
   gcontext.draw_text(84 - 5 * 3, 1, &state.score.to_string());
 }
 
-pub fn handle_event(state: State, event: &sdl2::event::Event) -> State {
+pub fn handle_event(state: &mut State, event: &sdl2::event::Event) {
   match *event {
     Event::KeyDown {
       keycode: Some(keycode),
       ..
     } => handle_keypress(state, keycode),
-    _ => state,
+    _ => (),
   }
 }
 
-fn handle_keypress(state: State, keycode: sdl2::keyboard::Keycode) -> State {
-  let mut state = state;
+fn handle_keypress(state: &mut State, keycode: sdl2::keyboard::Keycode) {
   if state.control_scheme == ControlScheme::Toggle {
     match keycode {
       sdl2::keyboard::Keycode::W => {
@@ -378,5 +374,4 @@ fn handle_keypress(state: State, keycode: sdl2::keyboard::Keycode) -> State {
       _ => {}
     }
   }
-  state
 }

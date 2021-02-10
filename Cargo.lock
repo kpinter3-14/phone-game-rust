@@ -44,6 +44,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "emscripten_main_loop"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5afad28b2fe4187ba9be5ea0172be678a18d89972722987a5487cd385669b682"
+
+[[package]]
 name = "getrandom"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -80,6 +86,7 @@ name = "phone-game-rust"
 version = "0.1.0"
 dependencies = [
  "cgmath",
+ "emscripten_main_loop",
  "rand",
  "sdl2",
 ]

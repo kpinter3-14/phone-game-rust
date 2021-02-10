@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en-us">
+
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <title></title>
+  <style>
+    body {
+      font-family: arial;
+      margin: 0;
+      padding: none;
+    }
+
+    .game-canvas {
+      padding: 0;
+      margin: auto;
+      display: block;
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      border: 0px none;
+    }
+  </style>
+</head>
+
+<body>
+  <canvas class="game-canvas" id="canvas" oncontextmenu="event.preventDefault()"></canvas>
+  <script type="text/javascript">
+    var Module = {
+      canvas: (function () {
+        var canvas = document.getElementById('canvas')
+        canvas.addEventListener(
+          'webglcontextlost',
+          function (e) {
+            alert('WebGL context lost. You will need to reload the page.')
+            e.preventDefault()
+          },
+          false
+        )
+        return canvas
+      })(),
+    }
+  </script>
+  {{{ SCRIPT }}}
+</body>
+
+</html>

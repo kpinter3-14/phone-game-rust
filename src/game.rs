@@ -33,16 +33,16 @@ pub fn init(gcontext: &mut GContext) {
   );
   #[rustfmt::skip]
   gcontext.add_sprite(
-    "gem",
+    "coin",
     vec![
-      "        ",
-      "   ##   ",
-      "  #  #  ",
-      " # #  # ",
-      "########",
-      " #  # # ",
-      "  #  #  ",
-      "   ##   ",
+      "  ####  ",
+      " ##   # ",
+      "##  #  #",
+      "##  #  #",
+      "##  #  #",
+      "##  #  #",
+      " ##   # ",
+      "  ####  ",
     ],
   );
 }
@@ -50,7 +50,7 @@ pub fn init(gcontext: &mut GContext) {
 #[derive(Copy, Clone)]
 enum ItemType {
   Cherry,
-  Gem,
+  Coin,
 }
 
 #[derive(Copy, Clone)]
@@ -148,7 +148,7 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
   if game_tick_counter % 14 == 0 {
     state.items.push(Item {
       item_type: if state.rng.gen_range(0..10) == 0 {
-        ItemType::Gem
+        ItemType::Coin
       } else {
         ItemType::Cherry
       },
@@ -170,7 +170,7 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
       if ball_rect.intersects(&item.rect) {
         match item.item_type {
           ItemType::Cherry => 1,
-          ItemType::Gem => 5,
+          ItemType::Coin => 5,
         }
       } else {
         0
@@ -191,7 +191,7 @@ pub fn render(gcontext: &mut GContext, state: &State) {
   for fruit in &state.items {
     let item_name = match fruit.item_type {
       ItemType::Cherry => "cherry",
-      ItemType::Gem => "gem",
+      ItemType::Coin => "coin",
     };
     gcontext.draw_sprite(fruit.rect.x as i32, fruit.rect.y as i32, item_name);
   }

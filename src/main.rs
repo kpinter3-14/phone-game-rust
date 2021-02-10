@@ -2,7 +2,6 @@ mod game;
 mod game_lib;
 
 use game::State;
-use game_lib::GContext;
 
 fn main() {
   game_lib::run(

@@ -56,7 +56,8 @@ enum ItemType {
 #[derive(Copy, Clone)]
 struct Item {
   item_type: ItemType,
-  rect: Rect,
+  velocity: V2F,
+  pos: V2F,
 }
 
 pub struct State {
@@ -74,7 +75,7 @@ pub struct State {
 
 const BALL_SPEED: f32 = 1.4;
 const BALL_SIZE: u32 = 6;
-const ITEM_SPEED: i32 = 2;
+const ITEM_SPEED: f32 = 3.0;
 const ITEM_SIZE: u32 = 8;
 const PADDLE_SPEED: i32 = 2;
 const PADDLE_SIZE: V2U = V2U::new(3, 10);
@@ -145,29 +146,38 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
   }
 
   // update items
-  if game_tick_counter % 14 == 0 {
-    state.items.push(Item {
-      item_type: if state.rng.gen_range(0..10) == 0 {
-        ItemType::Coin
-      } else {
-        ItemType::Cherry
-      },
-      rect: Rect::new(
-        state.rng.gen_range(10..80) as f32,
-        -5.0,
-        ITEM_SIZE as f32,
-        ITEM_SIZE as f32,
-      ),
-    });
+  if game_tick_counter % 20 == 0 {
+    if state.items.len() < 3 {
+      state.items.push(Item {
+        item_type: if state.rng.gen_range(0..10) == 0 {
+          ItemType::Coin
+        } else {
+          ItemType::Cherry
+        },
+        velocity: V2F::new(
+          state.rng.gen_range(-0.5..0.5),
+          state.rng.gen_range(0.0..0.5) + 0.5,
+        )
+        .normalize()
+          * (ITEM_SPEED * state.rng.gen_range(0.5..1.5)),
+        pos: V2F::new(state.rng.gen_range(10..80) as f32, -5.0),
+      });
+    }
   }
   for item in &mut state.items {
-    item.rect.y += ITEM_SPEED as f32;
+    item.pos += item.velocity;
+    item.velocity *= 0.9;
   }
   state.score += state
     .items
     .iter()
     .map(|&item| {
-      if ball_rect.intersects(&item.rect) {
+      if ball_rect.intersects(&Rect::new(
+        item.pos.x,
+        item.pos.y,
+        ITEM_SIZE as f32,
+        ITEM_SIZE as f32,
+      )) {
         match item.item_type {
           ItemType::Cherry => 1,
           ItemType::Coin => 5,
@@ -180,7 +190,16 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
   state.items = state
     .items
     .iter()
-    .filter(|&item| !ball_rect.intersects(&item.rect) && item.rect.y < 50.0)
+    .filter(|&item| {
+      !ball_rect.intersects(&Rect::new(
+        item.pos.x,
+        item.pos.y,
+        ITEM_SIZE as f32,
+        ITEM_SIZE as f32,
+      )) && item.pos.y < 50.0
+        && PADDLE_SIZE.x as f32 + 2.0 < item.pos.x
+        && item.pos.x < 84.0
+    })
     .map(|x| *x)
     .collect();
 
@@ -193,7 +212,7 @@ pub fn render(gcontext: &mut GContext, state: &State) {
       ItemType::Cherry => "cherry",
       ItemType::Coin => "coin",
     };
-    gcontext.draw_sprite(fruit.rect.x as i32, fruit.rect.y as i32, item_name);
+    gcontext.draw_sprite(fruit.pos.x as i32, fruit.pos.y as i32, item_name);
   }
   gcontext.draw_sprite(state.ball_pos.x as i32, state.ball_pos.y as i32, "ball");
   gcontext.draw_dark_rect(

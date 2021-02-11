@@ -140,8 +140,8 @@ pub struct GContext<'a> {
 }
 
 const TRANSPARENT_COLOR: sdl2::pixels::Color = sdl2::pixels::Color::RGBA(0, 0, 0, 0);
-const DARK_COLOR: sdl2::pixels::Color = sdl2::pixels::Color::RGB(67, 82, 61);
-const BRIGHT_COLOR: sdl2::pixels::Color = sdl2::pixels::Color::RGB(199, 240, 216);
+pub const DARK_COLOR: sdl2::pixels::Color = sdl2::pixels::Color::RGB(67, 82, 61);
+pub const BRIGHT_COLOR: sdl2::pixels::Color = sdl2::pixels::Color::RGB(199, 240, 216);
 
 impl<'a> GContext<'a> {
   pub fn new(screen_size: V2U, scale: u32) -> GContext<'a> {
@@ -233,6 +233,37 @@ impl<'a> GContext<'a> {
 
   pub fn set_dark(&mut self, x: i32, y: i32) {
     self.set_pixel(x, y, DARK_COLOR);
+  }
+
+  // midpoint circle algorithm
+  pub fn draw_circle(&mut self, cx: i32, cy: i32, r: i32, m: i32, color: sdl2::pixels::Color) {
+    let r2: i32 = r * r;
+    let mut x: i32 = 0;
+    let mut y: i32 = r;
+    let mut y2: i32 = y * y;
+    let mut dy2: i32 = 2 * y - 1;
+    let mut sum: i32 = r2;
+
+    while x <= y {
+      if x % m == 0 {
+        self.set_pixel(cx + x, cy + y, color);
+        self.set_pixel(cx + x, cy - y, color);
+        self.set_pixel(cx - x, cy + y, color);
+        self.set_pixel(cx - x, cy - y, color);
+        self.set_pixel(cx + y, cy + x, color);
+        self.set_pixel(cx + y, cy - x, color);
+        self.set_pixel(cx - y, cy + x, color);
+        self.set_pixel(cx - y, cy - x, color);
+      }
+
+      sum -= 1 + x * 2;
+      x += 1;
+      if sum <= y2 {
+        y -= 1;
+        y2 -= dy2;
+        dy2 -= 2;
+      }
+    }
   }
 
   pub fn draw_dark_rect(&mut self, x: i32, y: i32, w: u32, h: u32) {

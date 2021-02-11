@@ -60,6 +60,12 @@ struct Item {
   pos: V2F,
 }
 
+impl Item {
+  pub fn rect(&self) -> Rect {
+    Rect::new(self.pos.x, self.pos.y, ITEM_SIZE as f32, ITEM_SIZE as f32)
+  }
+}
+
 pub struct State {
   rng: rand::prelude::ThreadRng,
 
@@ -68,6 +74,8 @@ pub struct State {
 
   ball_pos: P2F,
   ball_dir: V2F,
+
+  rings: Vec<(f32, V2F)>,
 
   items: Vec<Item>,
   score: i32,
@@ -91,6 +99,8 @@ impl State {
 
       ball_pos: P2F::new(0.0, 20.0),
       ball_dir: V2F::new(1.0, 1.0).normalize() * BALL_SPEED,
+
+      rings: Vec::new(),
 
       items: Vec::new(),
       score: 0,
@@ -145,6 +155,17 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
     state.ball_dir = (state.ball_dir + V2F::new(2.0, d / D_MAX)).normalize() * BALL_SPEED;
   }
 
+  // update rings
+  for ring in &mut state.rings {
+    ring.0 += 1.0;
+  }
+  state.rings = state
+    .rings
+    .iter()
+    .filter(|(ring_size, _)| *ring_size < 10.0)
+    .map(|x| *x)
+    .collect();
+
   // update items
   if game_tick_counter % 20 == 0 {
     if state.items.len() < 3 {
@@ -168,35 +189,27 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
     item.pos += item.velocity;
     item.velocity *= 0.9;
   }
-  state.score += state
-    .items
-    .iter()
-    .map(|&item| {
-      if ball_rect.intersects(&Rect::new(
-        item.pos.x,
-        item.pos.y,
-        ITEM_SIZE as f32,
-        ITEM_SIZE as f32,
-      )) {
-        match item.item_type {
-          ItemType::Cherry => 1,
-          ItemType::Coin => 5,
-        }
-      } else {
-        0
-      }
+  let touched_items = state.items.iter().filter(|&item| {
+    ball_rect.intersects(&item.rect())
+      && item.pos.y < 50.0
+      && PADDLE_SIZE.x as f32 + 2.0 < item.pos.x
+      && item.pos.x < 84.0
+  });
+  state.score += touched_items
+    .clone()
+    .map(|&item| match item.item_type {
+      ItemType::Cherry => 1,
+      ItemType::Coin => 5,
     })
     .sum::<i32>();
+  let mut new_rings: Vec<(f32, V2F)> = touched_items.map(|&item| (0.0, item.pos)).collect();
+  state.rings.append(&mut new_rings);
   state.items = state
     .items
     .iter()
     .filter(|&item| {
-      !ball_rect.intersects(&Rect::new(
-        item.pos.x,
-        item.pos.y,
-        ITEM_SIZE as f32,
-        ITEM_SIZE as f32,
-      )) && item.pos.y < 50.0
+      !ball_rect.intersects(&item.rect())
+        && item.pos.y < 50.0
         && PADDLE_SIZE.x as f32 + 2.0 < item.pos.x
         && item.pos.x < 84.0
     })
@@ -207,6 +220,16 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
 }
 
 pub fn render(gcontext: &mut GContext, state: &State) {
+  for (ring_size, ring_pos) in &state.rings {
+    let m = (*ring_size / 4.0) as i32 + 1;
+    gcontext.draw_circle(
+      ring_pos.x as i32,
+      ring_pos.y as i32,
+      *ring_size as i32,
+      m,
+      crate::game_lib::DARK_COLOR,
+    );
+  }
   for fruit in &state.items {
     let item_name = match fruit.item_type {
       ItemType::Cherry => "cherry",

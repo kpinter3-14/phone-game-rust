@@ -153,6 +153,7 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
     let ball_center = state.ball_pos.x + BALL_SIZE as f32 / 2.0;
     let d = ball_center - paddle_center;
     state.ball_dir = (state.ball_dir + V2F::new(2.0, d / D_MAX)).normalize() * BALL_SPEED;
+    state.ball_pos.x = PADDLE_SIZE.x as f32 + 1.0;
   }
 
   // update rings

@@ -54,10 +54,26 @@ enum ItemType {
 }
 
 #[derive(Copy, Clone)]
+enum Age {
+  Finite { remaining: i32 },
+  Infinite,
+}
+
+impl Age {
+  pub fn is_alive(&self) -> bool {
+    match self {
+      Age::Infinite => true,
+      Age::Finite { remaining } => *remaining > 0,
+    }
+  }
+}
+
+#[derive(Copy, Clone)]
 struct Item {
   item_type: ItemType,
   velocity: V2F,
   pos: V2F,
+  age: Age,
 }
 
 impl Item {
@@ -88,6 +104,8 @@ const ITEM_SIZE: u32 = 8;
 const PADDLE_SPEED: i32 = 2;
 const PADDLE_SIZE: V2U = V2U::new(3, 10);
 const D_MAX: f32 = BALL_SIZE as f32 / 2.0 + PADDLE_SIZE.y as f32 / 2.0;
+const COIN_LIFETIME: u32 = 100;
+const COIN_FLASH_THRESHOLD: u32 = 20;
 
 impl State {
   pub fn new() -> State {
@@ -170,12 +188,18 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
   // update items
   if game_tick_counter % 20 == 0 {
     if state.items.len() < 3 {
+      let (item_type, age) = if state.rng.gen_range(0..10) == 0 {
+        (
+          ItemType::Coin,
+          Age::Finite {
+            remaining: COIN_LIFETIME as i32,
+          },
+        )
+      } else {
+        (ItemType::Cherry, Age::Infinite)
+      };
       state.items.push(Item {
-        item_type: if state.rng.gen_range(0..10) == 0 {
-          ItemType::Coin
-        } else {
-          ItemType::Cherry
-        },
+        item_type,
         velocity: V2F::new(
           state.rng.gen_range(-0.5..0.5),
           state.rng.gen_range(0.0..0.5) + 0.5,
@@ -183,12 +207,17 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
         .normalize()
           * (ITEM_SPEED * state.rng.gen_range(0.5..1.5)),
         pos: V2F::new(state.rng.gen_range(10..80) as f32, -5.0),
+        age,
       });
     }
   }
   for item in &mut state.items {
     item.pos += item.velocity;
     item.velocity *= 0.9;
+    match &mut item.age {
+      Age::Finite { remaining } => *remaining -= 1,
+      _ => (),
+    }
   }
   let touched_items = state.items.iter().filter(|&item| {
     ball_rect.intersects(&item.rect())
@@ -203,7 +232,14 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
       ItemType::Coin => 5,
     })
     .sum::<i32>();
-  let mut new_rings: Vec<(f32, V2F)> = touched_items.map(|&item| (0.0, item.pos)).collect();
+  let mut new_rings: Vec<(f32, V2F)> = touched_items
+    .map(|&item| {
+      (
+        0.0,
+        item.pos + V2F::new(ITEM_SIZE as f32 / 2.0, ITEM_SIZE as f32 / 2.0),
+      )
+    })
+    .collect();
   state.rings.append(&mut new_rings);
   state.items = state
     .items
@@ -213,6 +249,7 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
         && item.pos.y < 50.0
         && PADDLE_SIZE.x as f32 + 2.0 < item.pos.x
         && item.pos.x < 84.0
+        && item.age.is_alive()
     })
     .map(|x| *x)
     .collect();
@@ -231,12 +268,18 @@ pub fn render(gcontext: &mut GContext, state: &State) {
       crate::game_lib::DARK_COLOR,
     );
   }
-  for fruit in &state.items {
-    let item_name = match fruit.item_type {
+  for item in &state.items {
+    let item_name = match item.item_type {
       ItemType::Cherry => "cherry",
       ItemType::Coin => "coin",
     };
-    gcontext.draw_sprite(fruit.pos.x as i32, fruit.pos.y as i32, item_name);
+    let should_draw = match item.age {
+      Age::Infinite => true,
+      Age::Finite { remaining } => remaining > COIN_FLASH_THRESHOLD as i32 || remaining % 2 == 0,
+    };
+    if should_draw {
+      gcontext.draw_sprite(item.pos.x as i32, item.pos.y as i32, item_name);
+    }
   }
   gcontext.draw_sprite(state.ball_pos.x as i32, state.ball_pos.y as i32, "ball");
   gcontext.draw_dark_rect(

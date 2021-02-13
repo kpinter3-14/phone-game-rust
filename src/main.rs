@@ -144,8 +144,10 @@ pub enum ControlScheme {
 
 impl State {
   pub fn new(control_scheme: ControlScheme) -> State {
+    let mut rng = rand::thread_rng();
+    let ball_dir_y = rng.gen_range(0.5..1.0);
     State {
-      rng: rand::thread_rng(),
+      rng,
 
       control_scheme,
 
@@ -153,7 +155,7 @@ impl State {
       paddle_dir: 0.0,
 
       ball_pos: P2F::new(0.0, 20.0),
-      ball_dir: V2F::new(1.0, 1.0).normalize() * BALL_SPEED,
+      ball_dir: V2F::new(1.0, ball_dir_y).normalize() * BALL_SPEED,
 
       rings: Vec::new(),
 
@@ -192,12 +194,15 @@ pub fn update(state: State, key_status: &KeyStatus, game_tick_counter: i32) -> S
     state = State::new(state.control_scheme);
   }
   if state.ball_pos.x + BALL_SIZE as f32 >= 84.0 {
+    state.ball_pos.x = 84.0 - BALL_SIZE as f32;
     state.ball_dir.x *= -1.0;
   }
   if state.ball_pos.y < 0.0 {
+    state.ball_pos.y = 0.0;
     state.ball_dir.y *= -1.0;
   }
   if state.ball_pos.y + BALL_SIZE as f32 >= 48.0 {
+    state.ball_pos.y = 48.0 - BALL_SIZE as f32;
     state.ball_dir.y *= -1.0;
   }
   let ball_rect = Rect::new(
@@ -213,10 +218,15 @@ pub fn update(state: State, key_status: &KeyStatus, game_tick_counter: i32) -> S
     PADDLE_SIZE.y as f32,
   );
   if paddle_rect.intersects(&ball_rect) {
-    let paddle_center = state.paddle_pos.x + PADDLE_SIZE.x as f32 / 2.0;
-    let ball_center = state.ball_pos.x + BALL_SIZE as f32 / 2.0;
-    let d = ball_center - paddle_center;
-    state.ball_dir = (state.ball_dir + V2F::new(2.0, d / D_MAX)).normalize() * BALL_SPEED;
+    let paddle_center = state.paddle_pos.y + PADDLE_SIZE.y as f32 / 2.0;
+    let ball_center = state.ball_pos.y + BALL_SIZE as f32 / 2.0;
+    let d = (ball_center - paddle_center) / D_MAX;
+    state.ball_dir = V2F::new(
+      state.ball_dir.x * -0.5 + 0.5 * d.abs() + 0.5,
+      state.ball_dir.y * 0.5 + d * 2.0,
+    )
+    .normalize()
+      * BALL_SPEED;
     state.ball_pos.x = PADDLE_SIZE.x as f32 + 1.0;
   }
 

@@ -380,6 +380,14 @@ fn surface_from_strvec<'a>(data: &[&str]) -> sdl2::surface::Surface<'a> {
   surface
 }
 
+pub fn get_arg(arg_name: &str) -> Option<String> {
+  let prefix = String::new() + "--" + arg_name + "=";
+  std::env::args()
+    .find(|s| s.starts_with(&prefix))
+    .map(|s| s.strip_prefix(&prefix).map(|a| a.to_string()))
+    .flatten()
+}
+
 const FONT_WIDTH: u32 = 4;
 const FONT_HEIGHT: u32 = 5;
 

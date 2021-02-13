@@ -303,8 +303,8 @@ pub fn update(state: State, key_status: &KeyStatus, game_tick_counter: i32) -> S
     .filter(|&item| {
       !ball_rect.intersects(&item.rect())
         && item.pos.y < 50.0
-        && PADDLE_SIZE.x as f32 + 2.0 < item.pos.x
-        && item.pos.x < 84.0
+        && PADDLE_SIZE.x as f32 + 6.0 < item.pos.x
+        && item.pos.x < 78.0
         && item.age.is_alive()
     })
     .map(|x| *x)

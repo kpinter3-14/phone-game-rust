@@ -40,16 +40,15 @@ pub mod types {
 
 use types::*;
 
-pub fn run<S, I, U, R, H>(state: S, init: I, update: U, render: R, handle_event: H)
+pub fn run<S, I, U, R, H>(scale: u32, state: S, init: I, update: U, render: R, handle_event: H)
 where
   I: Fn(&mut GContext),
-  U: Fn(S, i32) -> S,
+  U: Fn(S, &KeyStatus, i32) -> S,
   R: Fn(&mut GContext, &S),
   H: Fn(S, &sdl2::event::Event) -> S,
 {
   const SCREEN_SIZE: V2U = V2U::new(84, 48);
-  const SCALE: u32 = 16;
-  let mut gcontext = GContext::new(SCREEN_SIZE, SCALE);
+  let mut gcontext = GContext::new(SCREEN_SIZE, scale);
   init(&mut gcontext);
 
   game_loop(&mut gcontext, state, update, render, handle_event);
@@ -57,7 +56,7 @@ where
 
 fn game_loop<S, U, R, H>(gcontext: &mut GContext, state: S, update: U, render: R, handle_event: H)
 where
-  U: Fn(S, i32) -> S,
+  U: Fn(S, &KeyStatus, i32) -> S,
   R: Fn(&mut GContext, &S),
   H: Fn(S, &sdl2::event::Event) -> S,
 {
@@ -75,7 +74,7 @@ where
       handle_system_events(
         &mut gcontext.want_to_quit,
         &mut gcontext.window_size,
-        &mut gcontext.pressed_keys,
+        &mut gcontext.key_status,
         &event,
       );
       state = handle_event(state, &event);
@@ -84,7 +83,7 @@ where
     ms_until_game_tick += delta_ticks;
     while ms_until_game_tick > TICK_INTERVAL {
       ms_until_game_tick -= TICK_INTERVAL;
-      state = update(state, game_tick_counter);
+      state = update(state, &gcontext.key_status, game_tick_counter);
       game_tick_counter += 1;
     }
 
@@ -97,7 +96,7 @@ where
 fn handle_system_events(
   want_to_quit: &mut bool,
   window_size: &mut V2U,
-  pressed_keys: &mut HashSet<sdl2::keyboard::Keycode>,
+  key_status: &mut KeyStatus,
   event: &sdl2::event::Event,
 ) {
   match *event {
@@ -110,15 +109,39 @@ fn handle_system_events(
       keycode: Some(keycode),
       ..
     } => {
-      pressed_keys.insert(keycode);
+      key_status.set_key_pressed(keycode, true);
     }
     Event::KeyUp {
       keycode: Some(keycode),
       ..
     } => {
-      pressed_keys.remove(&keycode);
+      key_status.set_key_pressed(keycode, false);
     }
     _ => {}
+  }
+}
+
+pub struct KeyStatus {
+  key_status: HashSet<sdl2::keyboard::Keycode>,
+}
+
+impl KeyStatus {
+  fn new() -> KeyStatus {
+    KeyStatus {
+      key_status: HashSet::new(),
+    }
+  }
+
+  fn set_key_pressed(&mut self, keycode: sdl2::keyboard::Keycode, pressed: bool) {
+    if pressed {
+      self.key_status.insert(keycode);
+    } else {
+      self.key_status.remove(&keycode);
+    }
+  }
+
+  pub fn is_key_pressed(&self, keycode: sdl2::keyboard::Keycode) -> bool {
+    self.key_status.contains(&keycode)
   }
 }
 
@@ -136,7 +159,7 @@ pub struct GContext<'a> {
   font_sprite: sdl2::surface::Surface<'a>,
   sprite_store: Store<sdl2::surface::Surface<'a>>,
   pub want_to_quit: bool,
-  pub pressed_keys: HashSet<sdl2::keyboard::Keycode>,
+  pub key_status: KeyStatus,
 }
 
 const TRANSPARENT_COLOR: sdl2::pixels::Color = sdl2::pixels::Color::RGBA(0, 0, 0, 0);
@@ -203,7 +226,7 @@ impl<'a> GContext<'a> {
       font_sprite,
       sprite_store,
       want_to_quit: false,
-      pressed_keys: HashSet::new(),
+      key_status: KeyStatus::new(),
     }
   }
 

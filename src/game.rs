@@ -85,6 +85,8 @@ impl Item {
 pub struct State {
   rng: rand::prelude::ThreadRng,
 
+  control_scheme: ControlScheme,
+
   paddle_pos: P2F,
   paddle_dir: f32,
 
@@ -107,10 +109,18 @@ const D_MAX: f32 = BALL_SIZE as f32 / 2.0 + PADDLE_SIZE.y as f32 / 2.0;
 const COIN_LIFETIME: u32 = 100;
 const COIN_FLASH_THRESHOLD: u32 = 20;
 
+#[derive(PartialEq)]
+pub enum ControlScheme {
+  Hold,
+  Toggle,
+}
+
 impl State {
-  pub fn new() -> State {
+  pub fn new(control_scheme: ControlScheme) -> State {
     State {
       rng: rand::thread_rng(),
+
+      control_scheme,
 
       paddle_pos: P2F::new(1.0, 1.0),
       paddle_dir: 0.0,
@@ -126,9 +136,18 @@ impl State {
   }
 }
 
-pub fn update(state: State, game_tick_counter: i32) -> State {
+pub fn update(state: State, key_status: &KeyStatus, game_tick_counter: i32) -> State {
   let mut state = state;
   // update paddle
+  if state.control_scheme == ControlScheme::Hold {
+    if key_status.is_key_pressed(sdl2::keyboard::Keycode::W) {
+      state.paddle_dir = -PADDLE_SPEED as f32;
+    } else if key_status.is_key_pressed(sdl2::keyboard::Keycode::S) {
+      state.paddle_dir = PADDLE_SPEED as f32;
+    } else {
+      state.paddle_dir = 0.0;
+    }
+  }
   state.paddle_pos.y += state.paddle_dir;
   if state.paddle_pos.y < 1.0 {
     state.paddle_pos.y = 1.0;
@@ -143,7 +162,7 @@ pub fn update(state: State, game_tick_counter: i32) -> State {
   state.ball_pos += state.ball_dir;
   if state.ball_pos.x < 0.0 {
     // TODO game over
-    state = State::new();
+    state = State::new(state.control_scheme);
   }
   if state.ball_pos.x + BALL_SIZE as f32 >= 84.0 {
     state.ball_dir.x *= -1.0;
@@ -303,22 +322,24 @@ pub fn handle_event(state: State, event: &sdl2::event::Event) -> State {
 
 fn handle_keypress(state: State, keycode: sdl2::keyboard::Keycode) -> State {
   let mut state = state;
-  match keycode {
-    sdl2::keyboard::Keycode::W => {
-      if state.paddle_dir >= 0.0 {
-        state.paddle_dir = -PADDLE_SPEED as f32;
-      } else {
-        state.paddle_dir = 0.0;
+  if state.control_scheme == ControlScheme::Toggle {
+    match keycode {
+      sdl2::keyboard::Keycode::W => {
+        if state.paddle_dir >= 0.0 {
+          state.paddle_dir = -PADDLE_SPEED as f32;
+        } else {
+          state.paddle_dir = 0.0;
+        }
       }
-    }
-    sdl2::keyboard::Keycode::S => {
-      if state.paddle_dir <= 0.0 {
-        state.paddle_dir = PADDLE_SPEED as f32;
-      } else {
-        state.paddle_dir = 0.0;
+      sdl2::keyboard::Keycode::S => {
+        if state.paddle_dir <= 0.0 {
+          state.paddle_dir = PADDLE_SPEED as f32;
+        } else {
+          state.paddle_dir = 0.0;
+        }
       }
+      _ => {}
     }
-    _ => {}
   }
   state
 }

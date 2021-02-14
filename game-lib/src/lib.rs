@@ -1,5 +1,6 @@
 use sdl2::event::Event;
 use sdl2::rect::Rect;
+use std::collections::HashMap;
 use std::collections::HashSet;
 use std::convert::TryInto;
 
@@ -40,8 +41,18 @@ pub mod types {
 
 use types::*;
 
+type Palette = HashMap<char, sdl2::pixels::Color>;
+
+pub struct Config {
+  pub scale: u32,
+  pub screen_size: V2U,
+  pub font_color: sdl2::pixels::Color,
+  pub background_color: sdl2::pixels::Color,
+  pub palette: Palette,
+}
+
 pub fn run<S: 'static, I, U: 'static, R: 'static, H: 'static>(
-  scale: u32,
+  config: Config,
   state: S,
   init: I,
   update: U,
@@ -53,7 +64,7 @@ pub fn run<S: 'static, I, U: 'static, R: 'static, H: 'static>(
   R: Fn(&mut GContext, &S),
   H: Fn(&mut S, &sdl2::event::Event),
 {
-  let game = Game::new(scale, state, init, update, render, handle_event);
+  let game = Game::new(config, state, init, update, render, handle_event);
   emscripten_main_loop::run(game);
 }
 
@@ -79,7 +90,7 @@ where
   H: Fn(&mut S, &sdl2::event::Event),
 {
   pub fn new<I>(
-    scale: u32,
+    config: Config,
     state: S,
     init: I,
     update: U,
@@ -89,8 +100,7 @@ where
   where
     I: Fn(&mut GContext),
   {
-    const SCREEN_SIZE: V2U = V2U::new(84, 48);
-    let mut gcontext = GContext::new(SCREEN_SIZE, scale);
+    let mut gcontext = GContext::new(config);
     init(&mut gcontext);
     Game {
       gcontext,
@@ -213,8 +223,7 @@ pub struct GContext<'a> {
   pub pixel_data_surface: sdl2::surface::Surface<'a>,
   pub timer_subsystem: sdl2::TimerSubsystem,
   pub canvas: sdl2::render::Canvas<sdl2::video::Window>,
-  screen_size: V2U,
-  scale: u32,
+  config: Config,
   pub window_size: V2U,
   pub camera: P2I,
   font_sprite: sdl2::surface::Surface<'a>,
@@ -223,17 +232,17 @@ pub struct GContext<'a> {
   pub key_status: KeyStatus,
 }
 
-const TRANSPARENT_COLOR: sdl2::pixels::Color = sdl2::pixels::Color::RGBA(0, 0, 0, 0);
+pub const TRANSPARENT: sdl2::pixels::Color = sdl2::pixels::Color::RGBA(0, 0, 0, 0);
 pub const DARK_COLOR: sdl2::pixels::Color = sdl2::pixels::Color::RGB(67, 82, 61);
 pub const BRIGHT_COLOR: sdl2::pixels::Color = sdl2::pixels::Color::RGB(199, 240, 216);
 
 impl<'a> GContext<'a> {
-  pub fn new(screen_size: V2U, scale: u32) -> GContext<'a> {
+  pub fn new(config: Config) -> GContext<'a> {
     let sdl_context = sdl2::init().unwrap();
     let event_pump = sdl_context.event_pump().unwrap();
     let video_subsystem = sdl_context.video().unwrap();
     let timer_subsystem = sdl_context.timer().unwrap();
-    let window_size = screen_size * scale;
+    let window_size = config.screen_size * config.scale;
 
     let window = video_subsystem
       .window("", window_size.x, window_size.y)
@@ -257,21 +266,24 @@ impl<'a> GContext<'a> {
     let screen_buffer = texture_creator
       .create_texture_streaming(
         sdl2::pixels::PixelFormatEnum::BGR888,
-        screen_size.x,
-        screen_size.y,
+        config.screen_size.x,
+        config.screen_size.y,
       )
       .unwrap();
 
     let sprite_store = Store::new();
 
     let pixel_data_surface = sdl2::surface::Surface::new(
-      screen_size.x,
-      screen_size.y,
+      config.screen_size.x,
+      config.screen_size.y,
       sdl2::pixels::PixelFormatEnum::BGR888,
     )
     .unwrap();
 
-    let font_sprite = surface_from_strvec(FONT_DATA);
+    let font_sprite = surface_from_strvec(
+      &[('#', config.font_color)].iter().cloned().collect(),
+      FONT_DATA,
+    );
 
     GContext {
       ms_since_start_last_frame: 0,
@@ -283,8 +295,7 @@ impl<'a> GContext<'a> {
       screen_buffer,
       pixel_data_surface,
       canvas,
-      screen_size,
-      scale,
+      config,
       window_size,
       camera: P2I::new(0, 0),
       font_sprite,
@@ -297,15 +308,19 @@ impl<'a> GContext<'a> {
   pub fn reset_screen(&mut self) {
     self
       .pixel_data_surface
-      .fill_rect(None, BRIGHT_COLOR)
+      .fill_rect(None, self.config.background_color)
       .unwrap();
   }
 
   fn set_pixel(&mut self, x: i32, y: i32, color: sdl2::pixels::Color) {
-    if x < 0 || self.screen_size.x as i32 <= x || y < 0 || self.screen_size.y as i32 <= y {
+    if x < 0
+      || self.config.screen_size.x as i32 <= x
+      || y < 0
+      || self.config.screen_size.y as i32 <= y
+    {
       return;
     }
-    let screen_width = self.screen_size.x as i32;
+    let screen_width = self.config.screen_size.x as i32;
     self.pixel_data_surface.with_lock_mut(|surf: &mut [u8]| {
       let off = (x + y * screen_width) as usize * 4;
       surf[off + 0] = color.b;
@@ -377,9 +392,10 @@ impl<'a> GContext<'a> {
   }
 
   pub fn add_sprite(&mut self, sprite_name: &str, data: Vec<&str>) {
-    self
-      .sprite_store
-      .insert(sprite_name.to_string(), surface_from_strvec(&data));
+    self.sprite_store.insert(
+      sprite_name.to_string(),
+      surface_from_strvec(&self.config.palette, &data),
+    );
   }
 
   pub fn draw_sprite(&mut self, x: i32, y: i32, sprite_name: &str) {
@@ -395,13 +411,13 @@ impl<'a> GContext<'a> {
 
   pub fn present(&mut self) {
     let screen_buffer = &mut self.screen_buffer;
-    let screen_width = self.screen_size.x;
+    let screen_width = self.config.screen_size.x;
     self.pixel_data_surface.with_lock(|surf: &[u8]| {
       screen_buffer
         .update(None, surf, (screen_width * 4) as usize)
         .unwrap();
     });
-    let scaled_screen_size = self.screen_size * self.scale;
+    let scaled_screen_size = self.config.screen_size * self.config.scale;
     self
       .canvas
       .copy(
@@ -419,7 +435,7 @@ impl<'a> GContext<'a> {
   }
 }
 
-fn surface_from_strvec<'a>(data: &[&str]) -> sdl2::surface::Surface<'a> {
+fn surface_from_strvec<'a>(palette: &Palette, data: &[&str]) -> sdl2::surface::Surface<'a> {
   let width = data[0].len() as u32;
   let height = data.len() as u32;
   let mut surface =
@@ -429,11 +445,12 @@ fn surface_from_strvec<'a>(data: &[&str]) -> sdl2::surface::Surface<'a> {
       for y in 0..height {
         let off = (x + y * width) as usize * 4;
         let ch = data[y as usize].as_bytes()[x as usize] as char;
-        let color = match ch {
-          ' ' => TRANSPARENT_COLOR,
-          '_' => BRIGHT_COLOR,
-          _ => DARK_COLOR,
-        };
+        let color = palette.get(&ch).unwrap_or(&TRANSPARENT);
+        // let color = match ch {
+        //   ' ' => TRANSPARENT,
+        //   '_' => BRIGHT_COLOR,
+        //   _ => DARK_COLOR,
+        // };
         surf[off + 0] = color.r;
         surf[off + 1] = color.g;
         surf[off + 2] = color.b;

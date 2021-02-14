@@ -1,8 +1,6 @@
-mod game_lib;
-
-use crate::game_lib::types::*;
-use crate::game_lib::*;
 use cgmath::prelude::*;
+use game_lib::types::*;
+use game_lib::*;
 use rand::prelude::*;
 use sdl2::event::Event;
 
@@ -22,7 +20,16 @@ fn main() {
     .unwrap_or(16);
 
   game_lib::run(
-    scale,
+    Config {
+      scale,
+      screen_size: V2U::new(84, 48),
+      font_color: DARK_COLOR,
+      background_color: BRIGHT_COLOR,
+      palette: [('#', DARK_COLOR), ('_', BRIGHT_COLOR)]
+        .iter()
+        .cloned()
+        .collect(),
+    },
     State::new(control_mode),
     init,
     update,
@@ -318,7 +325,7 @@ pub fn render(gcontext: &mut GContext, state: &State) {
       ring_pos.y as i32,
       *ring_size as i32,
       m,
-      crate::game_lib::DARK_COLOR,
+      game_lib::DARK_COLOR,
     );
   }
   for item in &state.items {

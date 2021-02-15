@@ -281,7 +281,7 @@ impl<'a> GContext<'a> {
     .unwrap();
 
     let font_sprite = surface_from_strvec(
-      &[('#', config.font_color)].iter().cloned().collect(),
+      &[('o', config.font_color)].iter().cloned().collect(),
       FONT_DATA,
     );
 
@@ -378,15 +378,28 @@ impl<'a> GContext<'a> {
   pub fn draw_text(&mut self, x: i32, y: i32, text: &str) {
     let mut i = 0;
     for ch in text.chars() {
-      let ix = ch as u8 - '0' as u8;
-      self
-        .font_sprite
-        .blit(
-          Rect::new(ix as i32 * FONT_WIDTH as i32, 0, FONT_WIDTH, FONT_HEIGHT),
-          &mut self.pixel_data_surface,
-          sdl2::rect::Rect::new(x + i * (1 + FONT_WIDTH as i32), y, FONT_WIDTH, 5),
-        )
-        .unwrap();
+      if ch != ' ' {
+        let ix = if '0' <= ch && ch <= '9' {
+          ch as u8 - '0' as u8
+        } else {
+          10 + ch as u8 - 'a' as u8
+        };
+        let ix_x = ix % 10;
+        let ix_y = ix / 10;
+        self
+          .font_sprite
+          .blit(
+            Rect::new(
+              ix_x as i32 * FONT_WIDTH as i32,
+              ix_y as i32 * FONT_HEIGHT as i32,
+              FONT_WIDTH,
+              FONT_HEIGHT,
+            ),
+            &mut self.pixel_data_surface,
+            sdl2::rect::Rect::new(x + i * (1 + FONT_WIDTH as i32), y, FONT_WIDTH, 5),
+          )
+          .unwrap();
+      }
       i += 1;
     }
   }
@@ -446,11 +459,6 @@ fn surface_from_strvec<'a>(palette: &Palette, data: &[&str]) -> sdl2::surface::S
         let off = (x + y * width) as usize * 4;
         let ch = data[y as usize].as_bytes()[x as usize] as char;
         let color = palette.get(&ch).unwrap_or(&TRANSPARENT);
-        // let color = match ch {
-        //   ' ' => TRANSPARENT,
-        //   '_' => BRIGHT_COLOR,
-        //   _ => DARK_COLOR,
-        // };
         surf[off + 0] = color.r;
         surf[off + 1] = color.g;
         surf[off + 2] = color.b;
@@ -475,9 +483,27 @@ const FONT_HEIGHT: u32 = 5;
 #[rustfmt::skip]
 const FONT_DATA: &[&str] = &[
 // L   L   L   L   L   L   L   L   L   L   L
-  " ##    # ##  ## #   #### ####### ##  ## ",
-  "#  #   ##  ##  ##   #   #      ##  ##  #",
-  "#  #   #  #   # # #  ## ###   #  ##  ###",
-  "#  #   # #  #  #####   ##  # #  #  #   #",
-  " ##    ##### ##   # ###  ## #    ##  ## ",
+  " oo    o oo  oo o   oooo ooooooo oo  oo ",
+  "o  o   oo  oo  oo   o   o      oo  oo  o",
+  "o  o   o  o   o o o  oo ooo   o  oo  ooo",
+  "o  o   o o  o  ooooo   oo  o o  o  o   o",
+  " oo    ooooo oo   o ooo  oo o    oo  oo ",
+
+  " oo ooo  oo ooo oooooooo oo o  o  o    o",
+  "o  oo  oo  oo  oo   o   o  oo  o  o    o",
+  "ooooooo o   o  oooo ooo o   oooo  o    o",
+  "o  oo  oo  oo  oo   o   o ooo  o  o o  o",
+  "o  oooo  oo ooo ooooo    oo o  o  o  oo ",
+
+  "o  oo   o  oo  o oo ooo  oo ooo  oo oooo",
+  "o o o   oooooo oo  oo  oo  oo  oo  o  o ",
+  "oo  o   oo oo ooo  oooo o  oooo  o    o ",
+  "o o o   o  oo  oo  oo   o ooo  oo  o  o ",
+  "o  oooooo  oo  o oo o    oooo  o oo   o ",
+
+  "o  oo  oo  oo  oo  ooooo                ",
+  "o  oo  oo  oo  oo  o   o                ",
+  "o  oo  oo oo oo  oo  oo                 ",
+  "o  o o o ooo oo   o o                   ",
+  " oo   o  oo o  o  o oooo                ",
 ];

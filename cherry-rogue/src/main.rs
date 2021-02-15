@@ -9,7 +9,7 @@ fn main() {
     Config {
       scale: 4,
       screen_size: V2U::new(160, 120),
-      font_color: sdl2::pixels::Color::BLACK,
+      font_color: sdl2::pixels::Color::WHITE,
       background_color: sdl2::pixels::Color::BLACK,
       palette: [
         ('#', sdl2::pixels::Color::RED),
@@ -95,9 +95,11 @@ impl State {
 pub fn update(state: &mut State, key_status: &KeyStatus, game_tick_counter: u32) {}
 
 pub fn render(gcontext: &mut GContext, state: &State) {
-  gcontext.draw_sprite(10, 10, "ball");
-  gcontext.draw_sprite(20, 10, "cherry");
-  gcontext.draw_sprite(30, 10, "coin");
+  gcontext.draw_text(10, 10, "cherry rogue");
+
+  gcontext.draw_sprite(10, 20, "ball");
+  gcontext.draw_sprite(20, 20, "cherry");
+  gcontext.draw_sprite(30, 20, "coin");
 }
 
 pub fn handle_event(state: &mut State, event: &sdl2::event::Event) {

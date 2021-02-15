@@ -446,6 +446,10 @@ impl<'a> GContext<'a> {
       .unwrap();
     self.canvas.present();
   }
+
+  pub fn get_config(&self) -> &Config {
+    &self.config
+  }
 }
 
 fn surface_from_strvec<'a>(palette: &Palette, data: &[&str]) -> sdl2::surface::Surface<'a> {
@@ -477,8 +481,8 @@ pub fn get_arg(arg_name: &str) -> Option<String> {
     .flatten()
 }
 
-const FONT_WIDTH: u32 = 4;
-const FONT_HEIGHT: u32 = 5;
+pub const FONT_WIDTH: u32 = 4;
+pub const FONT_HEIGHT: u32 = 5;
 
 #[rustfmt::skip]
 const FONT_DATA: &[&str] = &[

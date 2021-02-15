@@ -37,7 +37,7 @@ fn main() {
   );
 }
 
-pub fn init(gcontext: &mut GContext) {
+fn init(gcontext: &mut GContext) {
   crate::assets::load_sprites(gcontext);
 }
 
@@ -95,7 +95,7 @@ fn add_room(x: i32, y: i32, w: i32, h: i32, map_array: &mut MapArray) {
   }
 }
 
-pub struct State {
+struct State {
   rng: rand::prelude::ThreadRng,
 
   char_pos: V2I,
@@ -106,13 +106,13 @@ pub struct State {
 }
 
 #[derive(Copy, Clone, PartialEq)]
-pub enum ControlScheme {
+enum ControlScheme {
   Hold,
   Toggle,
 }
 
 impl State {
-  pub fn new() -> State {
+  fn new() -> State {
     let mut rng = rand::thread_rng();
     let mut map_array = [[Tile::Void; MAP_SIZE.y as usize]; MAP_SIZE.x as usize];
     add_room(2, 3, 4, 6, &mut map_array);
@@ -138,9 +138,9 @@ impl State {
   }
 }
 
-pub fn update(state: &mut State, key_status: &KeyStatus, game_tick_counter: u32) {}
+fn update(state: &mut State, key_status: &KeyStatus, game_tick_counter: u32) {}
 
-pub fn render(gcontext: &mut GContext, state: &State) {
+fn render(gcontext: &mut GContext, state: &State) {
   gcontext.draw_text(
     1,
     (gcontext.get_config().screen_size.y - game_lib::FONT_HEIGHT) as i32,
@@ -183,7 +183,7 @@ pub fn render(gcontext: &mut GContext, state: &State) {
   );
 }
 
-pub fn handle_event(state: &mut State, event: &sdl2::event::Event) {
+fn handle_event(state: &mut State, event: &sdl2::event::Event) {
   match *event {
     Event::KeyDown {
       keycode: Some(keycode),

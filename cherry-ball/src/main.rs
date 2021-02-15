@@ -38,7 +38,7 @@ fn main() {
   );
 }
 
-pub fn init(gcontext: &mut GContext) {
+fn init(gcontext: &mut GContext) {
   #[rustfmt::skip]
   gcontext.add_sprite(
     "ball",
@@ -94,7 +94,7 @@ enum Age {
 }
 
 impl Age {
-  pub fn is_alive(&self) -> bool {
+  fn is_alive(&self) -> bool {
     match self {
       Age::Infinite => true,
       Age::Finite { remaining } => *remaining > 0,
@@ -111,12 +111,12 @@ struct Item {
 }
 
 impl Item {
-  pub fn rect(&self) -> Rect {
+  fn rect(&self) -> Rect {
     Rect::new(self.pos.x, self.pos.y, ITEM_SIZE as f32, ITEM_SIZE as f32)
   }
 }
 
-pub struct State {
+struct State {
   rng: rand::prelude::ThreadRng,
 
   control_scheme: ControlScheme,
@@ -144,13 +144,13 @@ const COIN_LIFETIME: u32 = 100;
 const COIN_FLASH_THRESHOLD: u32 = 20;
 
 #[derive(Copy, Clone, PartialEq)]
-pub enum ControlScheme {
+enum ControlScheme {
   Hold,
   Toggle,
 }
 
 impl State {
-  pub fn new(control_scheme: ControlScheme) -> State {
+  fn new(control_scheme: ControlScheme) -> State {
     let mut rng = rand::thread_rng();
     let ball_dir_y = rng.gen_range(0.5..1.0);
     State {
@@ -172,7 +172,7 @@ impl State {
   }
 }
 
-pub fn update(state: &mut State, key_status: &KeyStatus, game_tick_counter: u32) {
+fn update(state: &mut State, key_status: &KeyStatus, game_tick_counter: u32) {
   // update paddle
   if state.control_scheme == ControlScheme::Hold {
     if key_status.is_key_pressed(sdl2::keyboard::Keycode::W) {
@@ -317,7 +317,7 @@ pub fn update(state: &mut State, key_status: &KeyStatus, game_tick_counter: u32)
     .collect();
 }
 
-pub fn render(gcontext: &mut GContext, state: &State) {
+fn render(gcontext: &mut GContext, state: &State) {
   for (ring_size, ring_pos) in &state.rings {
     let m = (*ring_size / 4.0) as i32 + 1;
     gcontext.draw_circle(
@@ -351,7 +351,7 @@ pub fn render(gcontext: &mut GContext, state: &State) {
   gcontext.draw_text(84 - 5 * 3, 1, &state.score.to_string());
 }
 
-pub fn handle_event(state: &mut State, event: &sdl2::event::Event) {
+fn handle_event(state: &mut State, event: &sdl2::event::Event) {
   match *event {
     Event::KeyDown {
       keycode: Some(keycode),

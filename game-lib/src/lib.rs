@@ -4,6 +4,9 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::convert::TryInto;
 
+pub mod incmap;
+pub use incmap::*;
+
 pub mod types {
   pub type V2U = cgmath::Vector2<u32>;
   pub type V2I = cgmath::Vector2<i32>;

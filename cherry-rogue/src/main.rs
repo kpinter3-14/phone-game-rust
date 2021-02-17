@@ -1,40 +1,48 @@
 use cgmath::prelude::*;
+use game_lib::incmap::*;
 use game_lib::types::*;
 use game_lib::*;
 use rand::prelude::*;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
-
 mod assets;
 
 fn main() {
-  game_lib::run(
-    Config {
-      scale: 4,
-      screen_size: V2U::new(160, 120),
-      font_color: sdl2::pixels::Color::WHITE,
-      background_color: sdl2::pixels::Color::BLACK,
-      palette: [
-        ('#', sdl2::pixels::Color::RED),
-        ('/', sdl2::pixels::Color::GREEN),
-        ('^', sdl2::pixels::Color::YELLOW),
-        ('b', sdl2::pixels::Color::BLUE),
-        ('c', sdl2::pixels::Color::CYAN),
-        ('&', sdl2::pixels::Color::RGB(255, 127, 0)), // orange
-        ('_', sdl2::pixels::Color::WHITE),
-        ('o', sdl2::pixels::Color::GREY),
-        ('B', sdl2::pixels::Color::BLACK),
-      ]
-      .iter()
-      .cloned()
-      .collect(),
-    },
-    State::new(),
-    init,
-    update,
-    render,
-    handle_event,
-  );
+  let config = Config {
+    scale: 4,
+    screen_size: V2U::new(160, 120),
+    font_color: sdl2::pixels::Color::WHITE,
+    background_color: sdl2::pixels::Color::BLACK,
+    palette: [
+      ('#', sdl2::pixels::Color::RED),
+      ('/', sdl2::pixels::Color::GREEN),
+      ('^', sdl2::pixels::Color::YELLOW),
+      ('b', sdl2::pixels::Color::BLUE),
+      ('c', sdl2::pixels::Color::CYAN),
+      ('&', sdl2::pixels::Color::RGB(255, 127, 0)), // orange
+      ('_', sdl2::pixels::Color::WHITE),
+      ('o', sdl2::pixels::Color::GREY),
+      ('B', sdl2::pixels::Color::BLACK),
+    ]
+    .iter()
+    .cloned()
+    .collect(),
+  };
+
+  let mut state = State::new();
+  state.entities.insert(Entity {
+    pos: V2I::new(2, 3),
+    item_type: ItemType::Cherry,
+  });
+  state.entities.insert(Entity {
+    pos: V2I::new(3, 4),
+    item_type: ItemType::Coin,
+  });
+  add_room(2, 3, 4, 6, &mut state.map_array);
+  add_room(6, 4, 3, 1, &mut state.map_array);
+  add_room(9, 2, 5, 5, &mut state.map_array);
+
+  game_lib::run(config, state, init, update, render, handle_event);
 }
 
 fn init(gcontext: &mut GContext) {
@@ -50,7 +58,7 @@ enum Tile {
 }
 
 #[derive(Copy, Clone, PartialEq)]
-struct Item {
+struct Entity {
   pos: V2I,
   item_type: ItemType,
 }
@@ -100,38 +108,19 @@ struct State {
 
   char_pos: V2I,
   map_array: MapArray,
-  items: Vec<Item>,
+  entities: IncMap<Entity>,
 
   score: i32,
-}
-
-#[derive(Copy, Clone, PartialEq)]
-enum ControlScheme {
-  Hold,
-  Toggle,
 }
 
 impl State {
   fn new() -> State {
     let mut rng = rand::thread_rng();
     let mut map_array = [[Tile::Void; MAP_SIZE.y as usize]; MAP_SIZE.x as usize];
-    add_room(2, 3, 4, 6, &mut map_array);
-    add_room(6, 4, 3, 1, &mut map_array);
-    add_room(9, 2, 5, 5, &mut map_array);
-    let items = vec![
-      Item {
-        pos: V2I::new(2, 3),
-        item_type: ItemType::Cherry,
-      },
-      Item {
-        pos: V2I::new(3, 4),
-        item_type: ItemType::Coin,
-      },
-    ];
     State {
       rng,
       char_pos: V2I::new(10, 5),
-      items,
+      entities: IncMap::new(),
       map_array,
       score: 0,
     }
@@ -165,15 +154,15 @@ fn render(gcontext: &mut GContext, state: &State) {
     }
   }
 
-  for item in &state.items {
-    let item_name = match item.item_type {
+  for (_, entity) in &state.entities {
+    let entity_name = match entity.item_type {
       ItemType::Cherry => "cherry",
       ItemType::Coin => "coin",
     };
     gcontext.draw_sprite(
-      item.pos.x * TILE_SIZE as i32,
-      item.pos.y * TILE_SIZE as i32,
-      item_name,
+      entity.pos.x * TILE_SIZE as i32,
+      entity.pos.y * TILE_SIZE as i32,
+      entity_name,
     );
   }
   gcontext.draw_sprite(

@@ -38,6 +38,10 @@ fn main() {
     pos: V2I::new(3, 4),
     item_type: ItemType::Coin,
   });
+  state.entities.insert(Entity {
+    pos: V2I::new(3, 4),
+    item_type: ItemType::Cherry,
+  });
   add_room(2, 3, 4, 6, &mut state.map_array);
   add_room(6, 4, 3, 1, &mut state.map_array);
   add_room(9, 2, 5, 5, &mut state.map_array);
@@ -67,6 +71,17 @@ struct Entity {
 enum ItemType {
   Cherry,
   Coin,
+}
+
+// TODO implement Display instead
+impl ToString for ItemType {
+  fn to_string(&self) -> String {
+    match self {
+      ItemType::Cherry => "cherry",
+      ItemType::Coin => "coin",
+    }
+    .to_string()
+  }
 }
 
 const TILE_SIZE: u32 = 8;
@@ -103,6 +118,12 @@ fn add_room(x: i32, y: i32, w: i32, h: i32, map_array: &mut MapArray) {
   }
 }
 
+type EntityId = u32;
+
+enum Menu {
+  Take { available_entities: Vec<EntityId> },
+}
+
 struct State {
   rng: rand::prelude::ThreadRng,
 
@@ -110,6 +131,7 @@ struct State {
   map_array: MapArray,
   entities: IncMap<Entity>,
 
+  active_menu: Option<Menu>,
   score: i32,
 }
 
@@ -120,10 +142,20 @@ impl State {
     State {
       rng,
       char_pos: V2I::new(10, 5),
-      entities: IncMap::new(),
       map_array,
+      entities: IncMap::new(),
+      active_menu: None,
       score: 0,
     }
+  }
+
+  fn get_entities_at(&self, pos: V2I) -> Vec<EntityId> {
+    self
+      .entities
+      .into_iter()
+      .filter(|(_, entity)| entity.pos == pos)
+      .map(|(id, _)| *id)
+      .collect()
   }
 }
 
@@ -155,14 +187,11 @@ fn render(gcontext: &mut GContext, state: &State) {
   }
 
   for (_, entity) in &state.entities {
-    let entity_name = match entity.item_type {
-      ItemType::Cherry => "cherry",
-      ItemType::Coin => "coin",
-    };
+    let entity_name = entity.item_type.to_string();
     gcontext.draw_sprite(
       entity.pos.x * TILE_SIZE as i32,
       entity.pos.y * TILE_SIZE as i32,
-      entity_name,
+      &entity_name,
     );
   }
   gcontext.draw_sprite(
@@ -170,6 +199,34 @@ fn render(gcontext: &mut GContext, state: &State) {
     state.char_pos.y * TILE_SIZE as i32,
     "ball",
   );
+
+  match &state.active_menu {
+    None => (),
+    Some(Menu::Take { available_entities }) => {
+      let dialogue_x = 2 * 8;
+      let dialogue_y =
+        (gcontext.get_config().screen_size.y as i32 / 8 - available_entities.len() as i32) / 2 * 8;
+      gcontext.draw_rect(
+        dialogue_x,
+        dialogue_y,
+        10 * 8,
+        available_entities.len() as u32 * 8,
+        sdl2::pixels::Color::RGB(30, 30, 30),
+      );
+      let mut ix = 0;
+      for entity_id in available_entities {
+        let entity_name = state
+          .entities
+          .get(*entity_id)
+          .unwrap()
+          .item_type
+          .to_string();
+        let menu_line = ((ix as u8 + 'a' as u8) as char).to_string() + " " + &entity_name;
+        gcontext.draw_text(dialogue_x + 1, dialogue_y + ix * 8 + 1, &menu_line);
+        ix += 1;
+      }
+    }
+  }
 }
 
 fn handle_event(state: &mut State, event: &sdl2::event::Event) {
@@ -183,18 +240,35 @@ fn handle_event(state: &mut State, event: &sdl2::event::Event) {
 }
 
 fn handle_keypress(state: &mut State, keycode: Keycode) {
-  let move_dir = match keycode {
-    Keycode::Up => V2I::new(0, -1),
-    Keycode::Left => V2I::new(-1, 0),
-    Keycode::Down => V2I::new(0, 1),
-    Keycode::Right => V2I::new(1, 0),
-    _ => V2I::new(0, 0),
-  };
-  let next_pos = state.char_pos + move_dir;
-  if state.map_array[next_pos.x as usize][next_pos.y as usize] != Tile::Wall {
-    state.char_pos = next_pos;
-  }
-  if keycode == Keycode::T {
-    // TODO take item
+  match &state.active_menu {
+    None => {
+      let move_dir = match keycode {
+        Keycode::Up => V2I::new(0, -1),
+        Keycode::Left => V2I::new(-1, 0),
+        Keycode::Down => V2I::new(0, 1),
+        Keycode::Right => V2I::new(1, 0),
+        _ => V2I::new(0, 0),
+      };
+      let next_pos = state.char_pos + move_dir;
+      if state.map_array[next_pos.x as usize][next_pos.y as usize] != Tile::Wall {
+        state.char_pos = next_pos;
+      }
+      if keycode == Keycode::T {
+        let available_entities = state.get_entities_at(state.char_pos);
+        if available_entities.len() > 0 {
+          state.active_menu = Some(Menu::Take { available_entities });
+        }
+      }
+    }
+    Some(Menu::Take { available_entities }) => {
+      let selection = keycode as i32 - 'a' as i32;
+      if 0 <= selection && selection < available_entities.len() as i32 {
+        let entity_id = available_entities[selection as usize];
+        let entity = state.entities.get(entity_id).unwrap();
+        // TODO put entity in inventory
+        state.entities.remove(entity_id);
+        state.active_menu = None;
+      }
+    }
   }
 }

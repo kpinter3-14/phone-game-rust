@@ -399,6 +399,27 @@ impl<'a> GContext<'a> {
     }
   }
 
+  pub fn draw_text_box<T: AsRef<str>>(
+    &mut self,
+    lines: &[T],
+    background_color: sdl2::pixels::Color,
+  ) {
+    let dialogue_x = 2 * 8;
+    let dialogue_y = (self.get_config().screen_size.y as i32 / 8 - lines.len() as i32) / 2 * 8;
+    self.draw_rect(
+      dialogue_x,
+      dialogue_y,
+      10 * 8,
+      lines.len() as u32 * 8,
+      background_color,
+    );
+    let mut ix = 0;
+    for line in lines {
+      self.draw_text(dialogue_x + 1, dialogue_y + ix * 8 + 1, line.as_ref());
+      ix += 1;
+    }
+  }
+
   pub fn add_sprite(&mut self, sprite_name: &str, data: Vec<&str>) {
     self.sprite_store.insert(
       sprite_name.to_string(),
@@ -494,11 +515,11 @@ const FONT_DATA: &[&str] = &[
   "o  oo  oo  oo  oo   o   o ooo  o  o o  o",
   "o  oooo  oo ooo ooooo    oo o  o  o  oo ",
 
-  "o  oo   o  oo  o oo ooo  oo ooo  oo oooo",
-  "o o o   oooooo oo  oo  oo  oo  oo  o  o ",
-  "oo  o   oo oo ooo  oooo o  oooo  o    o ",
-  "o o o   o  oo  oo  oo   o ooo  oo  o  o ",
-  "o  oooooo  oo  o oo o    oooo  o oo   o ",
+  "o  oo   o  oo  o oo ooo  oo ooo  ooooooo",
+  "o o o   oooooo oo  oo  oo  oo  oo     o ",
+  "oo  o   oo oo ooo  oooo o  oooo  oo   o ",
+  "o o o   o  oo  oo  oo   o ooo  o   o  o ",
+  "o  oooooo  oo  o oo o    oooo  oooo   o ",
 
   "o  oo  oo  oo  oo  ooooo                ",
   "o  oo  oo  oo  oo  o   o                ",

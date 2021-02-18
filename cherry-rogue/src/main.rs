@@ -122,6 +122,7 @@ type EntityId = u32;
 
 enum Menu {
   Take { available_entities: Vec<EntityId> },
+  Inventory,
 }
 
 struct State {
@@ -130,6 +131,7 @@ struct State {
   char_pos: V2I,
   map_array: MapArray,
   entities: IncMap<Entity>,
+  inventory: Vec<ItemType>,
 
   active_menu: Option<Menu>,
   score: i32,
@@ -144,6 +146,7 @@ impl State {
       char_pos: V2I::new(10, 5),
       map_array,
       entities: IncMap::new(),
+      inventory: Vec::new(),
       active_menu: None,
       score: 0,
     }
@@ -203,28 +206,29 @@ fn render(gcontext: &mut GContext, state: &State) {
   match &state.active_menu {
     None => (),
     Some(Menu::Take { available_entities }) => {
-      let dialogue_x = 2 * 8;
-      let dialogue_y =
-        (gcontext.get_config().screen_size.y as i32 / 8 - available_entities.len() as i32) / 2 * 8;
-      gcontext.draw_rect(
-        dialogue_x,
-        dialogue_y,
-        10 * 8,
-        available_entities.len() as u32 * 8,
-        sdl2::pixels::Color::RGB(30, 30, 30),
-      );
-      let mut ix = 0;
-      for entity_id in available_entities {
-        let entity_name = state
-          .entities
-          .get(*entity_id)
-          .unwrap()
-          .item_type
-          .to_string();
-        let menu_line = ((ix as u8 + 'a' as u8) as char).to_string() + " " + &entity_name;
-        gcontext.draw_text(dialogue_x + 1, dialogue_y + ix * 8 + 1, &menu_line);
-        ix += 1;
-      }
+      let mut lines: Vec<String> = available_entities
+        .iter()
+        .enumerate()
+        .map(|(ix, entity_id)| {
+          let entity_name = state
+            .entities
+            .get(*entity_id)
+            .unwrap()
+            .item_type
+            .to_string();
+          ((ix as u8 + 'a' as u8) as char).to_string() + " " + &entity_name
+        })
+        .collect();
+      lines.insert(0, "select item".to_string());
+      gcontext.draw_text_box(&lines, sdl2::pixels::Color::RGB(30, 30, 30));
+    }
+    Some(Menu::Inventory) => {
+      let inventory_lines: Vec<String> = if state.inventory.len() == 0 {
+        vec!["inventory empty".to_string()]
+      } else {
+        state.inventory.iter().map(|x| x.to_string()).collect()
+      };
+      gcontext.draw_text_box(&inventory_lines, sdl2::pixels::Color::RGB(10, 10, 40));
     }
   }
 }
@@ -259,16 +263,24 @@ fn handle_keypress(state: &mut State, keycode: Keycode) {
           state.active_menu = Some(Menu::Take { available_entities });
         }
       }
+      if keycode == Keycode::I {
+        state.active_menu = Some(Menu::Inventory);
+      }
     }
     Some(Menu::Take { available_entities }) => {
       let selection = keycode as i32 - 'a' as i32;
-      if 0 <= selection && selection < available_entities.len() as i32 {
+      if keycode == Keycode::Escape {
+        state.active_menu = None;
+      } else if 0 <= selection && selection < available_entities.len() as i32 {
         let entity_id = available_entities[selection as usize];
         let entity = state.entities.get(entity_id).unwrap();
-        // TODO put entity in inventory
+        state.inventory.push(entity.item_type);
         state.entities.remove(entity_id);
         state.active_menu = None;
       }
+    }
+    Some(Menu::Inventory) => {
+      state.active_menu = None;
     }
   }
 }

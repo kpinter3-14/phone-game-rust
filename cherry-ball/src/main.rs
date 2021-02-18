@@ -342,11 +342,12 @@ fn render(gcontext: &mut GContext, state: &State) {
     }
   }
   gcontext.draw_sprite(state.ball_pos.x as i32, state.ball_pos.y as i32, "ball");
-  gcontext.draw_dark_rect(
+  gcontext.draw_rect(
     state.paddle_pos.x as i32,
     state.paddle_pos.y as i32,
     PADDLE_SIZE.x,
     PADDLE_SIZE.y,
+    DARK_COLOR,
   );
   gcontext.draw_text(84 - 5 * 3, 1, &state.score.to_string());
 }

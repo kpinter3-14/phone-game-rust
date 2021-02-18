@@ -332,14 +332,6 @@ impl<'a> GContext<'a> {
     });
   }
 
-  pub fn set_bright(&mut self, x: i32, y: i32) {
-    self.set_pixel(x, y, BRIGHT_COLOR);
-  }
-
-  pub fn set_dark(&mut self, x: i32, y: i32) {
-    self.set_pixel(x, y, DARK_COLOR);
-  }
-
   // midpoint circle algorithm
   pub fn draw_circle(&mut self, cx: i32, cy: i32, r: i32, m: i32, color: sdl2::pixels::Color) {
     let r2: i32 = r * r;
@@ -371,10 +363,10 @@ impl<'a> GContext<'a> {
     }
   }
 
-  pub fn draw_dark_rect(&mut self, x: i32, y: i32, w: u32, h: u32) {
+  pub fn draw_rect(&mut self, x: i32, y: i32, w: u32, h: u32, color: sdl2::pixels::Color) {
     self
       .pixel_data_surface
-      .fill_rect(sdl2::rect::Rect::new(x, y, w, h), DARK_COLOR)
+      .fill_rect(sdl2::rect::Rect::new(x, y, w, h), color)
       .unwrap();
   }
 

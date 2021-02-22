@@ -20,16 +20,7 @@ fn main() {
     .unwrap_or(16);
 
   game_lib::run(
-    Config {
-      scale,
-      screen_size: V2U::new(84, 48),
-      font_color: DARK_COLOR,
-      background_color: BRIGHT_COLOR,
-      palette: [('#', DARK_COLOR), ('_', BRIGHT_COLOR)]
-        .iter()
-        .cloned()
-        .collect(),
-    },
+    cell_phone_config(scale),
     State::new(control_mode),
     init,
     update,

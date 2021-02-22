@@ -45,6 +45,20 @@ pub fn load_sprites(gcontext: &mut GContext) {
   );
   #[rustfmt::skip]
   gcontext.add_sprite(
+    "gin",
+    vec![
+      "_______ ",
+      " _ccc_  ",
+      "  _c_   ",
+      "   _    ",
+      "   _    ",
+      "   _    ",
+      "   _    ",
+      "  ___   ",
+    ],
+  );
+  #[rustfmt::skip]
+  gcontext.add_sprite(
     "floor",
     vec![
       " o oo oo",

@@ -1,4 +1,3 @@
-use cgmath::prelude::*;
 use game_lib::incmap::*;
 use game_lib::types::*;
 use game_lib::*;
@@ -6,6 +5,8 @@ use rand::prelude::*;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 mod assets;
+mod game_map;
+use game_map::*;
 
 fn main() {
   let config = Config {
@@ -32,19 +33,31 @@ fn main() {
   let mut state = State::new();
   state.entities.insert(Entity {
     pos: V2I::new(2, 3),
-    item_type: ItemType::Cherry,
+    entity_type: EntityType::Item {
+      item_type: ItemType::Cherry,
+    },
   });
   state.entities.insert(Entity {
     pos: V2I::new(3, 4),
-    item_type: ItemType::Coin,
+    entity_type: EntityType::Item {
+      item_type: ItemType::Coin,
+    },
   });
   state.entities.insert(Entity {
     pos: V2I::new(3, 4),
-    item_type: ItemType::Cherry,
+    entity_type: EntityType::Item {
+      item_type: ItemType::Cherry,
+    },
   });
-  add_room(2, 3, 4, 6, &mut state.map_array);
-  add_room(6, 4, 3, 1, &mut state.map_array);
-  add_room(9, 2, 5, 5, &mut state.map_array);
+  state.entities.insert(Entity {
+    pos: V2I::new(5, 5),
+    entity_type: EntityType::Enemy {
+      enemy_type: EnemyType::Gin,
+    },
+  });
+  state.game_map.add_room(2, 3, 4, 6);
+  state.game_map.add_room(6, 4, 3, 1);
+  state.game_map.add_room(9, 2, 5, 5);
 
   game_lib::run(config, state, init, update, render, handle_event);
 }
@@ -54,17 +67,15 @@ fn init(gcontext: &mut GContext) {
 }
 
 #[derive(Copy, Clone, PartialEq)]
-enum Tile {
-  Void,
-  Wall,
-  Floor,
-  Door { is_open: bool },
+struct Entity {
+  pos: V2I,
+  entity_type: EntityType,
 }
 
 #[derive(Copy, Clone, PartialEq)]
-struct Entity {
-  pos: V2I,
-  item_type: ItemType,
+enum EntityType {
+  Item { item_type: ItemType },
+  Enemy { enemy_type: EnemyType },
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -73,55 +84,51 @@ enum ItemType {
   Coin,
 }
 
-// TODO implement Display instead
-impl ToString for ItemType {
-  fn to_string(&self) -> String {
+#[derive(Copy, Clone, PartialEq)]
+enum EnemyType {
+  Gin,
+}
+
+impl std::fmt::Display for EntityType {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
     match self {
-      ItemType::Cherry => "cherry",
-      ItemType::Coin => "coin",
+      EntityType::Item { item_type } => write!(f, "{}", item_type),
+      EntityType::Enemy { enemy_type } => write!(f, "{}", enemy_type),
     }
-    .to_string()
   }
 }
 
-const TILE_SIZE: u32 = 8;
-const MAP_SIZE: V2U = V2U::new(20, 14);
-type MapArray = [[Tile; MAP_SIZE.y as usize]; MAP_SIZE.x as usize];
-
-fn add_room(x: i32, y: i32, w: i32, h: i32, map_array: &mut MapArray) {
-  for x_ix in x..x + w {
-    for y_ix in y..y + h {
-      map_array[x_ix as usize][y_ix as usize] = Tile::Floor;
-    }
+impl std::fmt::Display for ItemType {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(
+      f,
+      "{}",
+      match self {
+        ItemType::Cherry => "cherry",
+        ItemType::Coin => "coin",
+      }
+    )
   }
+}
 
-  for x_ix in x - 1..x + w + 1 {
-    let top_row_tile: &mut Tile = &mut map_array[x_ix as usize][(y - 1) as usize];
-    if *top_row_tile != Tile::Floor {
-      *top_row_tile = Tile::Wall;
-    }
-    let bottom_row_tile: &mut Tile = &mut map_array[x_ix as usize][(y + h) as usize];
-    if *bottom_row_tile != Tile::Floor {
-      *bottom_row_tile = Tile::Wall;
-    }
-  }
-
-  for y_ix in y - 1..y + h + 1 {
-    let left_col_tile: &mut Tile = &mut map_array[(x - 1) as usize][y_ix as usize];
-    if *left_col_tile != Tile::Floor {
-      *left_col_tile = Tile::Wall;
-    }
-    let right_col_tile: &mut Tile = &mut map_array[(x + w) as usize][y_ix as usize];
-    if *right_col_tile != Tile::Floor {
-      *right_col_tile = Tile::Wall;
-    }
+impl std::fmt::Display for EnemyType {
+  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    write!(
+      f,
+      "{}",
+      match self {
+        EnemyType::Gin => "gin",
+      }
+    )
   }
 }
 
 type EntityId = u32;
 
 enum Menu {
-  Take { available_entities: Vec<EntityId> },
+  Take {
+    available_items: Vec<(EntityId, ItemType)>,
+  },
   Inventory,
 }
 
@@ -129,7 +136,7 @@ struct State {
   rng: rand::prelude::ThreadRng,
 
   char_pos: V2I,
-  map_array: MapArray,
+  game_map: GameMap,
   entities: IncMap<Entity>,
   inventory: Vec<ItemType>,
 
@@ -140,11 +147,13 @@ struct State {
 impl State {
   fn new() -> State {
     let mut rng = rand::thread_rng();
-    let mut map_array = [[Tile::Void; MAP_SIZE.y as usize]; MAP_SIZE.x as usize];
+    let mut game_map = GameMap {
+      map_array: [[Tile::Void; MAP_SIZE.y as usize]; MAP_SIZE.x as usize],
+    };
     State {
       rng,
       char_pos: V2I::new(10, 5),
-      map_array,
+      game_map,
       entities: IncMap::new(),
       inventory: Vec::new(),
       active_menu: None,
@@ -160,6 +169,27 @@ impl State {
       .map(|(id, _)| *id)
       .collect()
   }
+
+  fn process_ai(&mut self) {
+    let enemies: Vec<(EntityId, EnemyType)> = self
+      .entities
+      .into_iter()
+      .filter_map(|(entity_id, entity)| match entity.entity_type {
+        EntityType::Enemy { enemy_type } => Some((*entity_id, enemy_type)),
+        _ => None,
+      })
+      .collect();
+    for (entity_id, enemy_type) in enemies {
+      let random_dir = self.rng.gen_range(0..=3);
+      let f = |x: i32| (x % 2) * (-1 as i32).pow(x as u32 / 2);
+      let movement_dir = V2I::new(f(random_dir), f(random_dir + 1));
+      let entity = self.entities.get_mut(entity_id).unwrap();
+      let next_pos = entity.pos + movement_dir;
+      if self.game_map.is_open_tile(next_pos) {
+        entity.pos = next_pos;
+      }
+    }
+  }
 }
 
 fn update(state: &mut State, key_status: &KeyStatus, game_tick_counter: u32) {}
@@ -173,7 +203,7 @@ fn render(gcontext: &mut GContext, state: &State) {
 
   for x in 0..MAP_SIZE.x {
     for y in 0..MAP_SIZE.y {
-      let tile_name = match state.map_array[x as usize][y as usize] {
+      let tile_name = match state.game_map.map_array[x as usize][y as usize] {
         Tile::Void => None,
         Tile::Wall => Some("wall"),
         Tile::Floor => Some("floor"),
@@ -190,7 +220,7 @@ fn render(gcontext: &mut GContext, state: &State) {
   }
 
   for (_, entity) in &state.entities {
-    let entity_name = entity.item_type.to_string();
+    let entity_name = entity.entity_type.to_string();
     gcontext.draw_sprite(
       entity.pos.x * TILE_SIZE as i32,
       entity.pos.y * TILE_SIZE as i32,
@@ -205,17 +235,12 @@ fn render(gcontext: &mut GContext, state: &State) {
 
   match &state.active_menu {
     None => (),
-    Some(Menu::Take { available_entities }) => {
-      let mut lines: Vec<String> = available_entities
+    Some(Menu::Take { available_items }) => {
+      let mut lines: Vec<String> = available_items
         .iter()
         .enumerate()
-        .map(|(ix, entity_id)| {
-          let entity_name = state
-            .entities
-            .get(*entity_id)
-            .unwrap()
-            .item_type
-            .to_string();
+        .map(|(ix, (_, item_type))| {
+          let entity_name = item_type.to_string();
           ((ix as u8 + 'a' as u8) as char).to_string() + " " + &entity_name
         })
         .collect();
@@ -247,34 +272,51 @@ fn handle_keypress(state: &mut State, keycode: Keycode) {
   match &state.active_menu {
     None => {
       let move_dir = match keycode {
-        Keycode::Up => V2I::new(0, -1),
-        Keycode::Left => V2I::new(-1, 0),
-        Keycode::Down => V2I::new(0, 1),
-        Keycode::Right => V2I::new(1, 0),
-        _ => V2I::new(0, 0),
+        Keycode::Up => Some(V2I::new(0, -1)),
+        Keycode::Left => Some(V2I::new(-1, 0)),
+        Keycode::Down => Some(V2I::new(0, 1)),
+        Keycode::Right => Some(V2I::new(1, 0)),
+        _ => None,
       };
-      let next_pos = state.char_pos + move_dir;
-      if state.map_array[next_pos.x as usize][next_pos.y as usize] != Tile::Wall {
-        state.char_pos = next_pos;
-      }
-      if keycode == Keycode::T {
-        let available_entities = state.get_entities_at(state.char_pos);
-        if available_entities.len() > 0 {
-          state.active_menu = Some(Menu::Take { available_entities });
+      match move_dir {
+        Some(move_dir) => {
+          let next_pos = state.char_pos + move_dir;
+          if state.game_map.map_array[next_pos.x as usize][next_pos.y as usize] != Tile::Wall {
+            state.char_pos = next_pos;
+          }
+          state.process_ai();
         }
-      }
-      if keycode == Keycode::I {
-        state.active_menu = Some(Menu::Inventory);
+        None => match keycode {
+          Keycode::T => {
+            let entities_at_player = state.get_entities_at(state.char_pos);
+            let available_items: Vec<(EntityId, ItemType)> = entities_at_player
+              .iter()
+              .filter_map(|&entity_id| {
+                let entity = state.entities.get(entity_id).unwrap();
+                match entity.entity_type {
+                  EntityType::Item { item_type } => Some((entity_id, item_type)),
+                  _ => None,
+                }
+              })
+              .collect();
+            if available_items.len() > 0 {
+              state.active_menu = Some(Menu::Take { available_items });
+            }
+          }
+          Keycode::I => {
+            state.active_menu = Some(Menu::Inventory);
+          }
+          _ => (),
+        },
       }
     }
-    Some(Menu::Take { available_entities }) => {
+    Some(Menu::Take { available_items }) => {
       let selection = keycode as i32 - 'a' as i32;
       if keycode == Keycode::Escape {
         state.active_menu = None;
-      } else if 0 <= selection && selection < available_entities.len() as i32 {
-        let entity_id = available_entities[selection as usize];
-        let entity = state.entities.get(entity_id).unwrap();
-        state.inventory.push(entity.item_type);
+      } else if 0 <= selection && selection < available_items.len() as i32 {
+        let (entity_id, item_type) = available_items[selection as usize];
+        state.inventory.push(item_type);
         state.entities.remove(entity_id);
         state.active_menu = None;
       }

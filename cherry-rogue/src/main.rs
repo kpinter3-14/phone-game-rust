@@ -9,26 +9,7 @@ mod game_map;
 use game_map::*;
 
 fn main() {
-  let config = Config {
-    scale: 4,
-    screen_size: V2U::new(160, 120),
-    font_color: sdl2::pixels::Color::WHITE,
-    background_color: sdl2::pixels::Color::BLACK,
-    palette: [
-      ('#', sdl2::pixels::Color::RED),
-      ('/', sdl2::pixels::Color::GREEN),
-      ('^', sdl2::pixels::Color::YELLOW),
-      ('b', sdl2::pixels::Color::BLUE),
-      ('c', sdl2::pixels::Color::CYAN),
-      ('&', sdl2::pixels::Color::RGB(255, 127, 0)), // orange
-      ('_', sdl2::pixels::Color::WHITE),
-      ('o', sdl2::pixels::Color::GREY),
-      ('B', sdl2::pixels::Color::BLACK),
-    ]
-    .iter()
-    .cloned()
-    .collect(),
-  };
+  let config = qqvga_config(4);
 
   let mut state = State::new();
   state.entities.insert(Entity {

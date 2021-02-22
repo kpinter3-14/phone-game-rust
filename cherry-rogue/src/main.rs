@@ -5,7 +5,9 @@ use rand::prelude::*;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 mod assets;
+mod entity;
 mod game_map;
+use entity::*;
 use game_map::*;
 
 fn main() {
@@ -46,65 +48,6 @@ fn main() {
 fn init(gcontext: &mut GContext) {
   crate::assets::load_sprites(gcontext);
 }
-
-#[derive(Copy, Clone, PartialEq)]
-struct Entity {
-  pos: V2I,
-  entity_type: EntityType,
-}
-
-#[derive(Copy, Clone, PartialEq)]
-enum EntityType {
-  Item { item_type: ItemType },
-  Enemy { enemy_type: EnemyType },
-}
-
-#[derive(Copy, Clone, PartialEq)]
-enum ItemType {
-  Cherry,
-  Coin,
-}
-
-#[derive(Copy, Clone, PartialEq)]
-enum EnemyType {
-  Gin,
-}
-
-impl std::fmt::Display for EntityType {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self {
-      EntityType::Item { item_type } => write!(f, "{}", item_type),
-      EntityType::Enemy { enemy_type } => write!(f, "{}", enemy_type),
-    }
-  }
-}
-
-impl std::fmt::Display for ItemType {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(
-      f,
-      "{}",
-      match self {
-        ItemType::Cherry => "cherry",
-        ItemType::Coin => "coin",
-      }
-    )
-  }
-}
-
-impl std::fmt::Display for EnemyType {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    write!(
-      f,
-      "{}",
-      match self {
-        EnemyType::Gin => "gin",
-      }
-    )
-  }
-}
-
-type EntityId = u32;
 
 enum Menu {
   Take {

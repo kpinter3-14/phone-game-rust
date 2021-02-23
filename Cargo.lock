@@ -44,6 +44,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cherry-4x"
+version = "0.1.0"
+dependencies = [
+ "cgmath",
+ "game-lib",
+ "rand",
+ "sdl2",
+]
+
+[[package]]
 name = "cherry-ball"
 version = "0.1.0"
 dependencies = [

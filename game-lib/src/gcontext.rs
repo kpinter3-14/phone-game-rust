@@ -119,31 +119,35 @@ impl<'a> GContext<'a> {
 
   // midpoint circle algorithm
   pub fn draw_circle(&mut self, cx: i32, cy: i32, r: i32, m: i32, color: sdl2::pixels::Color) {
-    let r2: i32 = r * r;
-    let mut x: i32 = 0;
-    let mut y: i32 = r;
-    let mut y2: i32 = y * y;
-    let mut dy2: i32 = 2 * y - 1;
-    let mut sum: i32 = r2;
+    let mut f = 1 - r;
+    let mut dx = 0;
+    let mut dy = -2 * r;
+    let mut x = 0;
+    let mut y = r;
 
-    while x <= y {
+    self.set_pixel(cx, cy + r, color);
+    self.set_pixel(cx, cy - r, color);
+    self.set_pixel(cx + r, cy, color);
+    self.set_pixel(cx - r, cy, color);
+
+    while x < y {
+      if f >= 0 {
+        y -= 1;
+        dy += 2;
+        f += dy;
+      }
+      x += 1;
+      dx += 2;
+      f += dx + 1;
       if x % m == 0 {
         self.set_pixel(cx + x, cy + y, color);
-        self.set_pixel(cx + x, cy - y, color);
         self.set_pixel(cx - x, cy + y, color);
+        self.set_pixel(cx + x, cy - y, color);
         self.set_pixel(cx - x, cy - y, color);
         self.set_pixel(cx + y, cy + x, color);
-        self.set_pixel(cx + y, cy - x, color);
         self.set_pixel(cx - y, cy + x, color);
+        self.set_pixel(cx + y, cy - x, color);
         self.set_pixel(cx - y, cy - x, color);
-      }
-
-      sum -= 1 + x * 2;
-      x += 1;
-      if sum <= y2 {
-        y -= 1;
-        y2 -= dy2;
-        dy2 -= 2;
       }
     }
   }

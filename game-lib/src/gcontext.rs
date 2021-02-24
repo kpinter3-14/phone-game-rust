@@ -190,21 +190,45 @@ impl<'a> GContext<'a> {
 
   pub fn draw_text_box<T: AsRef<str>>(
     &mut self,
+    hor_pos: HorPos,
+    vert_pos: VertPos,
     lines: &[T],
     background_color: sdl2::pixels::Color,
   ) {
-    let dialogue_x = 2 * 8;
-    let dialogue_y = (self.get_config().screen_size.y as i32 / 8 - lines.len() as i32) / 2 * 8;
+    let text_box_w: u32 = lines
+      .iter()
+      .max_by(|x, y| x.as_ref().len().partial_cmp(&y.as_ref().len()).unwrap())
+      .map(|x| x.as_ref().len())
+      .unwrap_or(0) as u32
+      * (FONT_WIDTH + 1)
+      + 1;
+    let text_box_h: u32 = lines.len() as u32 * (FONT_HEIGHT + 1) + 1;
+    let dialogue_x = match hor_pos {
+      HorPos::Left => 0,
+      HorPos::Center => (self.get_config().screen_size.x as i32 - text_box_w as i32) / 2,
+      HorPos::Right => self.get_config().screen_size.x as i32 - text_box_w as i32,
+      HorPos::Abs { x } => x,
+    };
+    let dialogue_y = match vert_pos {
+      VertPos::Top => 0,
+      VertPos::Center => (self.get_config().screen_size.y as i32 - text_box_h as i32) / 2,
+      VertPos::Bottom => self.get_config().screen_size.y as i32 - text_box_h as i32,
+      VertPos::Abs { y } => y,
+    };
     self.draw_rect(
       dialogue_x,
       dialogue_y,
-      10 * 8,
-      lines.len() as u32 * 8,
+      text_box_w,
+      text_box_h,
       background_color,
     );
     let mut ix = 0;
     for line in lines {
-      self.draw_text(dialogue_x + 1, dialogue_y + ix * 8 + 1, line.as_ref());
+      self.draw_text(
+        dialogue_x + 1,
+        dialogue_y + ix * (FONT_HEIGHT as i32 + 1) + 1,
+        line.as_ref(),
+      );
       ix += 1;
     }
   }
@@ -255,6 +279,20 @@ impl<'a> GContext<'a> {
   pub fn get_config(&self) -> &Config {
     &self.config
   }
+}
+
+pub enum HorPos {
+  Left,
+  Right,
+  Center,
+  Abs { x: i32 },
+}
+
+pub enum VertPos {
+  Top,
+  Bottom,
+  Center,
+  Abs { y: i32 },
 }
 
 fn surface_from_strvec<'a>(palette: &Palette, data: &[&str]) -> sdl2::surface::Surface<'a> {

@@ -169,7 +169,12 @@ fn render(gcontext: &mut GContext, state: &State) {
         })
         .collect();
       lines.insert(0, "select item".to_string());
-      gcontext.draw_text_box(&lines, sdl2::pixels::Color::RGB(30, 30, 30));
+      gcontext.draw_text_box(
+        HorPos::Center,
+        VertPos::Top,
+        &lines,
+        sdl2::pixels::Color::RGB(40, 40, 40),
+      );
     }
     Some(Menu::Inventory) => {
       let inventory_lines: Vec<String> = if state.inventory.len() == 0 {
@@ -177,7 +182,12 @@ fn render(gcontext: &mut GContext, state: &State) {
       } else {
         state.inventory.iter().map(|x| x.to_string()).collect()
       };
-      gcontext.draw_text_box(&inventory_lines, sdl2::pixels::Color::RGB(10, 10, 40));
+      gcontext.draw_text_box(
+        HorPos::Center,
+        VertPos::Center,
+        &inventory_lines,
+        sdl2::pixels::Color::RGB(10, 10, 40),
+      );
     }
   }
 }

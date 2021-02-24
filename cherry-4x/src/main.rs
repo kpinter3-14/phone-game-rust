@@ -28,6 +28,8 @@ fn render(gcontext: &mut GContext, state: &State) {
   gcontext.draw_circle(20, 20, 15, 3, sdl2::pixels::Color::CYAN);
   gcontext.draw_circle(20, 60, 15, 1, sdl2::pixels::Color::CYAN);
   gcontext.draw_text_box(
+    HorPos::Center,
+    VertPos::Center,
     &vec!["collect resources", "or else"],
     sdl2::pixels::Color::RED,
   );

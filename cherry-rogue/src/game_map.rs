@@ -47,8 +47,16 @@ impl GameMap {
     }
   }
 
+  pub fn set_tile(&mut self, pos: V2I, tile: Tile) {
+    self.map_array[pos.x as usize][pos.y as usize] = tile;
+  }
+
+  pub fn get_tile(&self, pos: V2I) -> Tile {
+    self.map_array[pos.x as usize][pos.y as usize]
+  }
+
   pub fn is_open_tile(&self, pos: V2I) -> bool {
     let tile = self.map_array[pos.x as usize][pos.y as usize];
-    tile == Tile::Floor
+    tile == Tile::Floor || tile == Tile::Door { is_open: true }
   }
 }

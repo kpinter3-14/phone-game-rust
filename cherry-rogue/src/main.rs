@@ -11,38 +11,14 @@ use entity::*;
 use game_map::*;
 
 fn main() {
-  let config = qqvga_config(4);
-
-  let mut state = State::new();
-  state.entities.insert(Entity {
-    pos: V2I::new(2, 3),
-    entity_type: EntityType::Item {
-      item_type: ItemType::Cherry,
-    },
-  });
-  state.entities.insert(Entity {
-    pos: V2I::new(3, 4),
-    entity_type: EntityType::Item {
-      item_type: ItemType::Coin,
-    },
-  });
-  state.entities.insert(Entity {
-    pos: V2I::new(3, 4),
-    entity_type: EntityType::Item {
-      item_type: ItemType::Cherry,
-    },
-  });
-  state.entities.insert(Entity {
-    pos: V2I::new(5, 5),
-    entity_type: EntityType::Enemy {
-      enemy_type: EnemyType::Gin,
-    },
-  });
-  state.game_map.add_room(2, 3, 4, 6);
-  state.game_map.add_room(6, 4, 3, 1);
-  state.game_map.add_room(9, 2, 5, 5);
-
-  game_lib::run(config, state, init, update, render, handle_event);
+  game_lib::run(
+    qqvga_config(4),
+    State::new(),
+    init,
+    update,
+    render,
+    handle_event,
+  );
 }
 
 fn init(gcontext: &mut GContext) {
@@ -56,6 +32,7 @@ enum Interaction {
   },
   Inventory,
   Drink,
+  Open,
 }
 
 struct State {
@@ -68,16 +45,15 @@ struct State {
 
   active_interaction: Interaction,
   status_text: Option<String>,
-  score: i32,
 }
 
 impl State {
   fn new() -> State {
-    let mut rng = rand::thread_rng();
-    let mut game_map = GameMap {
+    let rng = rand::thread_rng();
+    let game_map = GameMap {
       map_array: [[Tile::Void; MAP_SIZE.y as usize]; MAP_SIZE.x as usize],
     };
-    State {
+    let mut state = State {
       rng,
       char_pos: V2I::new(10, 5),
       game_map,
@@ -85,8 +61,40 @@ impl State {
       inventory: Vec::new(),
       active_interaction: Interaction::Walking,
       status_text: None,
-      score: 0,
-    }
+    };
+    state.generate_game_map();
+    state
+  }
+
+  fn generate_game_map(&mut self) {
+    self.entities.insert(Entity {
+      pos: V2I::new(2, 3),
+      entity_type: EntityType::Item {
+        item_type: ItemType::Cherry,
+      },
+    });
+    self.entities.insert(Entity {
+      pos: V2I::new(3, 4),
+      entity_type: EntityType::Item {
+        item_type: ItemType::Coin,
+      },
+    });
+    self.entities.insert(Entity {
+      pos: V2I::new(3, 4),
+      entity_type: EntityType::Item {
+        item_type: ItemType::Cherry,
+      },
+    });
+    self.entities.insert(Entity {
+      pos: V2I::new(5, 5),
+      entity_type: EntityType::Enemy {
+        enemy_type: EnemyType::Gin,
+      },
+    });
+    self.game_map.add_room(2, 3, 4, 6);
+    self.game_map.add_room(6, 4, 3, 1);
+    self.game_map.map_array[7][4] = Tile::Door { is_open: false };
+    self.game_map.add_room(9, 2, 5, 5);
   }
 
   fn get_entities_at(&self, pos: V2I) -> Vec<EntityId> {
@@ -144,7 +152,8 @@ fn render(gcontext: &mut GContext, state: &State) {
         Tile::Void => None,
         Tile::Wall => Some("wall"),
         Tile::Floor => Some("floor"),
-        Tile::Door { is_open } => Some("door"),
+        Tile::Door { is_open: true } => Some("open door"),
+        Tile::Door { is_open: false } => Some("closed door"),
       };
       tile_name.map(|tile_name| {
         gcontext.draw_sprite(
@@ -258,6 +267,10 @@ fn handle_keypress(state: &mut State, keycode: Keycode) {
           state.active_interaction = Interaction::Drink;
           state.status_text = Some("select drink direction".to_owned());
         }
+        Keycode::O => {
+          state.active_interaction = Interaction::Open;
+          state.status_text = Some("select open direction".to_owned());
+        }
         _ => (),
       },
     },
@@ -296,6 +309,19 @@ fn handle_keypress(state: &mut State, keycode: Keycode) {
               },
             })
           });
+      });
+      state.active_interaction = Interaction::Walking;
+      state.status_text = None;
+    }
+    Interaction::Open => {
+      map_key_to_dir(keycode).map(|open_dir| {
+        let open_target_pos = state.char_pos + open_dir;
+        match state.game_map.get_tile(open_target_pos) {
+          Tile::Door { is_open: false } => state
+            .game_map
+            .set_tile(open_target_pos, Tile::Door { is_open: true }),
+          _ => (),
+        }
       });
       state.active_interaction = Interaction::Walking;
       state.status_text = None;

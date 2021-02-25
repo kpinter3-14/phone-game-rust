@@ -99,4 +99,32 @@ pub fn load_sprites(gcontext: &mut GContext) {
       "cccccccc",
     ],
   );
+  #[rustfmt::skip]
+  gcontext.add_sprite(
+    "open door",
+    vec![
+      " &      ",
+      "&&&     ",
+      "&&&     ",
+      "&&&     ",
+      "&&&     ",
+      "&&&     ",
+      "&&&     ",
+      "&&&     ",
+    ],
+  );
+  #[rustfmt::skip]
+  gcontext.add_sprite(
+    "closed door",
+    vec![
+      "  &&&&  ",
+      " &&  && ",
+      "& &  & &",
+      "& &  & &",
+      "& &  & &",
+      "& &  & &",
+      "& &  & &",
+      "&&&&&&&&",
+    ],
+  );
 }

@@ -67,6 +67,7 @@ struct State {
   inventory: Vec<ItemType>,
 
   active_interaction: Interaction,
+  status_text: Option<String>,
   score: i32,
 }
 
@@ -83,6 +84,7 @@ impl State {
       entities: IncMap::new(),
       inventory: Vec::new(),
       active_interaction: Interaction::Walking,
+      status_text: None,
       score: 0,
     }
   }
@@ -125,7 +127,7 @@ impl State {
         let movement_dir = V2I::new(f(random_dir), f(random_dir + 1));
         let entity = self.entities.get_mut(entity_id).unwrap();
         let next_pos = entity.pos + movement_dir;
-        if self.game_map.is_open_tile(next_pos) {
+        if self.game_map.is_open_tile(next_pos) && self.char_pos != next_pos {
           entity.pos = next_pos;
         }
       }
@@ -136,12 +138,6 @@ impl State {
 fn update(_state: &mut State, _key_status: &KeyStatus, _game_tick_counter: u32) {}
 
 fn render(gcontext: &mut GContext, state: &State) {
-  gcontext.draw_text(
-    1,
-    (gcontext.get_config().screen_size.y - game_lib::FONT_HEIGHT) as i32,
-    "cherry rogue",
-  );
-
   for x in 0..MAP_SIZE.x {
     for y in 0..MAP_SIZE.y {
       let tile_name = match state.game_map.map_array[x as usize][y as usize] {
@@ -158,6 +154,14 @@ fn render(gcontext: &mut GContext, state: &State) {
         )
       });
     }
+
+    state.status_text.as_ref().map(|status_text| {
+      gcontext.draw_text(
+        1,
+        (gcontext.get_config().screen_size.y - game_lib::FONT_HEIGHT) as i32,
+        status_text.as_str(),
+      )
+    });
   }
 
   for (_, entity) in &state.entities {
@@ -224,7 +228,14 @@ fn handle_keypress(state: &mut State, keycode: Keycode) {
     Interaction::Walking => match map_key_to_dir(keycode) {
       Some(move_dir) => {
         let next_pos = state.char_pos + move_dir;
-        if state.game_map.map_array[next_pos.x as usize][next_pos.y as usize] != Tile::Wall {
+        let enemies_at_pos =
+          state.get_entities_at_projected(next_pos, |entity| match entity.entity_type {
+            EntityType::Enemy { enemy_type } => Some(enemy_type),
+            _ => None,
+          });
+        let no_blocking_enemy = enemies_at_pos.is_empty();
+        let no_blocking_wall = state.game_map.is_open_tile(next_pos);
+        if no_blocking_wall && no_blocking_enemy {
           state.char_pos = next_pos;
         }
         state.process_ai();
@@ -245,6 +256,7 @@ fn handle_keypress(state: &mut State, keycode: Keycode) {
         }
         Keycode::D => {
           state.active_interaction = Interaction::Drink;
+          state.status_text = Some("select drink direction".to_owned());
         }
         _ => (),
       },
@@ -286,6 +298,7 @@ fn handle_keypress(state: &mut State, keycode: Keycode) {
           });
       });
       state.active_interaction = Interaction::Walking;
+      state.status_text = None;
     }
   }
 }

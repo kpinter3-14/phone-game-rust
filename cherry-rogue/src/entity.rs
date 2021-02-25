@@ -2,7 +2,7 @@ use game_lib::types::*;
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct Entity {
-  pub pos: V2I,
+  pub pos: P2I,
   pub entity_type: EntityType,
 }
 

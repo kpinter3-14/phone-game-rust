@@ -38,7 +38,7 @@ enum Interaction {
 struct State {
   rng: rand::prelude::ThreadRng,
 
-  char_pos: V2I,
+  char_pos: P2I,
   game_map: GameMap,
   entities: IncMap<Entity>,
   inventory: Vec<ItemType>,
@@ -55,7 +55,7 @@ impl State {
     };
     let mut state = State {
       rng,
-      char_pos: V2I::new(10, 5),
+      char_pos: P2I::new(10, 5),
       game_map,
       entities: IncMap::new(),
       inventory: Vec::new(),
@@ -68,25 +68,25 @@ impl State {
 
   fn generate_game_map(&mut self) {
     self.entities.insert(Entity {
-      pos: V2I::new(2, 3),
+      pos: P2I::new(2, 3),
       entity_type: EntityType::Item {
         item_type: ItemType::Cherry,
       },
     });
     self.entities.insert(Entity {
-      pos: V2I::new(3, 4),
+      pos: P2I::new(3, 4),
       entity_type: EntityType::Item {
         item_type: ItemType::Coin,
       },
     });
     self.entities.insert(Entity {
-      pos: V2I::new(3, 4),
+      pos: P2I::new(3, 4),
       entity_type: EntityType::Item {
         item_type: ItemType::Cherry,
       },
     });
     self.entities.insert(Entity {
-      pos: V2I::new(5, 5),
+      pos: P2I::new(5, 5),
       entity_type: EntityType::Enemy {
         enemy_type: EnemyType::Gin,
       },
@@ -97,7 +97,7 @@ impl State {
     self.game_map.add_room(9, 2, 5, 5);
   }
 
-  fn get_entities_at(&self, pos: V2I) -> Vec<EntityId> {
+  fn get_entities_at(&self, pos: P2I) -> Vec<EntityId> {
     self
       .entities
       .into_iter()
@@ -106,7 +106,7 @@ impl State {
       .collect()
   }
 
-  fn get_entities_at_projected<P, B>(&self, pos: V2I, project: P) -> Vec<(EntityId, B)>
+  fn get_entities_at_projected<P, B>(&self, pos: P2I, project: P) -> Vec<(EntityId, B)>
   where
     P: Fn(&Entity) -> Option<B>,
   {

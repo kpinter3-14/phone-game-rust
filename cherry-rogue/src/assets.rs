@@ -59,6 +59,20 @@ pub fn load_sprites(gcontext: &mut GContext) {
   );
   #[rustfmt::skip]
   gcontext.add_sprite(
+    "dead gin",
+    vec![
+      "        ",
+      "      _ ",
+      "     __ ",
+      "_   ___ ",
+      "_______ ",
+      "_   ___ ",
+      "     __ ",
+      "      _ ",
+    ],
+  );
+  #[rustfmt::skip]
+  gcontext.add_sprite(
     "floor",
     vec![
       " o oo oo",

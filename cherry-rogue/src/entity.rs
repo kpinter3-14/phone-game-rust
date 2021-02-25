@@ -16,6 +16,7 @@ pub enum EntityType {
 pub enum ItemType {
   Cherry,
   Coin,
+  DeadGin,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -40,6 +41,7 @@ impl std::fmt::Display for ItemType {
       match self {
         ItemType::Cherry => "cherry",
         ItemType::Coin => "coin",
+        ItemType::DeadGin => "dead gin",
       }
     )
   }

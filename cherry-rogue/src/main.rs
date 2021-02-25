@@ -49,11 +49,13 @@ fn init(gcontext: &mut GContext) {
   crate::assets::load_sprites(gcontext);
 }
 
-enum Menu {
+enum Interaction {
+  Walking,
   Take {
     available_items: Vec<(EntityId, ItemType)>,
   },
   Inventory,
+  Drink,
 }
 
 struct State {
@@ -64,7 +66,7 @@ struct State {
   entities: IncMap<Entity>,
   inventory: Vec<ItemType>,
 
-  active_menu: Option<Menu>,
+  active_interaction: Interaction,
   score: i32,
 }
 
@@ -80,7 +82,7 @@ impl State {
       game_map,
       entities: IncMap::new(),
       inventory: Vec::new(),
-      active_menu: None,
+      active_interaction: Interaction::Walking,
       score: 0,
     }
   }
@@ -103,20 +105,23 @@ impl State {
         _ => None,
       })
       .collect();
-    for (entity_id, enemy_type) in enemies {
-      let random_dir = self.rng.gen_range(0..=3);
-      let f = |x: i32| (x % 2) * (-1 as i32).pow(x as u32 / 2);
-      let movement_dir = V2I::new(f(random_dir), f(random_dir + 1));
-      let entity = self.entities.get_mut(entity_id).unwrap();
-      let next_pos = entity.pos + movement_dir;
-      if self.game_map.is_open_tile(next_pos) {
-        entity.pos = next_pos;
+    for (entity_id, _enemy_type) in enemies {
+      let should_move = self.rng.gen_range(0..2) == 0;
+      if should_move {
+        let random_dir = self.rng.gen_range(0..=3);
+        let f = |x: i32| (x % 2) * (-1 as i32).pow(x as u32 / 2);
+        let movement_dir = V2I::new(f(random_dir), f(random_dir + 1));
+        let entity = self.entities.get_mut(entity_id).unwrap();
+        let next_pos = entity.pos + movement_dir;
+        if self.game_map.is_open_tile(next_pos) {
+          entity.pos = next_pos;
+        }
       }
     }
   }
 }
 
-fn update(state: &mut State, key_status: &KeyStatus, game_tick_counter: u32) {}
+fn update(_state: &mut State, _key_status: &KeyStatus, _game_tick_counter: u32) {}
 
 fn render(gcontext: &mut GContext, state: &State) {
   gcontext.draw_text(
@@ -157,9 +162,8 @@ fn render(gcontext: &mut GContext, state: &State) {
     "ball",
   );
 
-  match &state.active_menu {
-    None => (),
-    Some(Menu::Take { available_items }) => {
+  match &state.active_interaction {
+    Interaction::Take { available_items } => {
       let mut lines: Vec<String> = available_items
         .iter()
         .enumerate()
@@ -176,7 +180,7 @@ fn render(gcontext: &mut GContext, state: &State) {
         sdl2::pixels::Color::RGB(40, 40, 40),
       );
     }
-    Some(Menu::Inventory) => {
+    Interaction::Inventory => {
       let inventory_lines: Vec<String> = if state.inventory.len() == 0 {
         vec!["inventory empty".to_string()]
       } else {
@@ -189,6 +193,7 @@ fn render(gcontext: &mut GContext, state: &State) {
         sdl2::pixels::Color::RGB(10, 10, 40),
       );
     }
+    _ => (),
   }
 }
 
@@ -203,8 +208,8 @@ fn handle_event(state: &mut State, event: &sdl2::event::Event) {
 }
 
 fn handle_keypress(state: &mut State, keycode: Keycode) {
-  match &state.active_menu {
-    None => {
+  match &state.active_interaction {
+    Interaction::Walking => {
       let move_dir = match keycode {
         Keycode::Up => Some(V2I::new(0, -1)),
         Keycode::Left => Some(V2I::new(-1, 0)),
@@ -222,8 +227,8 @@ fn handle_keypress(state: &mut State, keycode: Keycode) {
         }
         None => match keycode {
           Keycode::T => {
-            let entities_at_player = state.get_entities_at(state.char_pos);
-            let available_items: Vec<(EntityId, ItemType)> = entities_at_player
+            let available_items: Vec<(EntityId, ItemType)> = state
+              .get_entities_at(state.char_pos)
               .iter()
               .filter_map(|&entity_id| {
                 let entity = state.entities.get(entity_id).unwrap();
@@ -234,29 +239,67 @@ fn handle_keypress(state: &mut State, keycode: Keycode) {
               })
               .collect();
             if available_items.len() > 0 {
-              state.active_menu = Some(Menu::Take { available_items });
+              state.active_interaction = Interaction::Take { available_items };
             }
           }
           Keycode::I => {
-            state.active_menu = Some(Menu::Inventory);
+            state.active_interaction = Interaction::Inventory;
+          }
+          Keycode::D => {
+            state.active_interaction = Interaction::Drink;
           }
           _ => (),
         },
       }
     }
-    Some(Menu::Take { available_items }) => {
+    Interaction::Take { available_items } => {
       let selection = keycode as i32 - 'a' as i32;
       if keycode == Keycode::Escape {
-        state.active_menu = None;
+        state.active_interaction = Interaction::Walking;
       } else if 0 <= selection && selection < available_items.len() as i32 {
         let (entity_id, item_type) = available_items[selection as usize];
         state.inventory.push(item_type);
         state.entities.remove(entity_id);
-        state.active_menu = None;
+        state.active_interaction = Interaction::Walking;
       }
     }
-    Some(Menu::Inventory) => {
-      state.active_menu = None;
+    Interaction::Inventory => {
+      state.active_interaction = Interaction::Walking;
+    }
+    Interaction::Drink => {
+      let drink_dir_opt = match keycode {
+        Keycode::Up => Some(V2I::new(0, -1)),
+        Keycode::Left => Some(V2I::new(-1, 0)),
+        Keycode::Down => Some(V2I::new(0, 1)),
+        Keycode::Right => Some(V2I::new(1, 0)),
+        _ => None,
+      };
+      drink_dir_opt.map(|drink_dir| {
+        let drink_target_pos = state.char_pos + drink_dir;
+        let first_gin_at_target: Option<EntityId> = state
+          .get_entities_at(drink_target_pos)
+          .iter()
+          .filter_map(|&entity_id| {
+            let entity = state.entities.get(entity_id).unwrap();
+            match entity.entity_type {
+              EntityType::Enemy {
+                enemy_type: EnemyType::Gin,
+              } => Some(entity_id),
+              _ => None,
+            }
+          })
+          .nth(0);
+        first_gin_at_target.map(|gin_entity_id| {
+          state.entities.remove(gin_entity_id);
+          state.entities.insert(Entity {
+            pos: drink_target_pos,
+            entity_type: EntityType::Item {
+              item_type: ItemType::DeadGin,
+            },
+          })
+        });
+      });
+      state.active_interaction = Interaction::Walking;
     }
   }
 }

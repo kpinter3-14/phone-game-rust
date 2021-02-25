@@ -96,6 +96,18 @@ impl State {
       .collect()
   }
 
+  fn get_entities_at_projected<P, B>(&self, pos: V2I, project: P) -> Vec<(EntityId, B)>
+  where
+    P: Fn(&Entity) -> Option<B>,
+  {
+    self
+      .entities
+      .into_iter()
+      .filter(|(_, entity)| entity.pos == pos)
+      .filter_map(|(id, entity)| project(entity).map(|b| (*id, b)))
+      .collect()
+  }
+
   fn process_ai(&mut self) {
     let enemies: Vec<(EntityId, EnemyType)> = self
       .entities
@@ -209,49 +221,34 @@ fn handle_event(state: &mut State, event: &sdl2::event::Event) {
 
 fn handle_keypress(state: &mut State, keycode: Keycode) {
   match &state.active_interaction {
-    Interaction::Walking => {
-      let move_dir = match keycode {
-        Keycode::Up => Some(V2I::new(0, -1)),
-        Keycode::Left => Some(V2I::new(-1, 0)),
-        Keycode::Down => Some(V2I::new(0, 1)),
-        Keycode::Right => Some(V2I::new(1, 0)),
-        _ => None,
-      };
-      match move_dir {
-        Some(move_dir) => {
-          let next_pos = state.char_pos + move_dir;
-          if state.game_map.map_array[next_pos.x as usize][next_pos.y as usize] != Tile::Wall {
-            state.char_pos = next_pos;
-          }
-          state.process_ai();
+    Interaction::Walking => match map_key_to_dir(keycode) {
+      Some(move_dir) => {
+        let next_pos = state.char_pos + move_dir;
+        if state.game_map.map_array[next_pos.x as usize][next_pos.y as usize] != Tile::Wall {
+          state.char_pos = next_pos;
         }
-        None => match keycode {
-          Keycode::T => {
-            let available_items: Vec<(EntityId, ItemType)> = state
-              .get_entities_at(state.char_pos)
-              .iter()
-              .filter_map(|&entity_id| {
-                let entity = state.entities.get(entity_id).unwrap();
-                match entity.entity_type {
-                  EntityType::Item { item_type } => Some((entity_id, item_type)),
-                  _ => None,
-                }
-              })
-              .collect();
-            if available_items.len() > 0 {
-              state.active_interaction = Interaction::Take { available_items };
-            }
-          }
-          Keycode::I => {
-            state.active_interaction = Interaction::Inventory;
-          }
-          Keycode::D => {
-            state.active_interaction = Interaction::Drink;
-          }
-          _ => (),
-        },
+        state.process_ai();
       }
-    }
+      None => match keycode {
+        Keycode::T => {
+          let available_items: Vec<(EntityId, ItemType)> =
+            state.get_entities_at_projected(state.char_pos, |entity| match entity.entity_type {
+              EntityType::Item { item_type } => Some(item_type),
+              _ => None,
+            });
+          if available_items.len() > 0 {
+            state.active_interaction = Interaction::Take { available_items };
+          }
+        }
+        Keycode::I => {
+          state.active_interaction = Interaction::Inventory;
+        }
+        Keycode::D => {
+          state.active_interaction = Interaction::Drink;
+        }
+        _ => (),
+      },
+    },
     Interaction::Take { available_items } => {
       let selection = keycode as i32 - 'a' as i32;
       if keycode == Keycode::Escape {
@@ -267,39 +264,38 @@ fn handle_keypress(state: &mut State, keycode: Keycode) {
       state.active_interaction = Interaction::Walking;
     }
     Interaction::Drink => {
-      let drink_dir_opt = match keycode {
-        Keycode::Up => Some(V2I::new(0, -1)),
-        Keycode::Left => Some(V2I::new(-1, 0)),
-        Keycode::Down => Some(V2I::new(0, 1)),
-        Keycode::Right => Some(V2I::new(1, 0)),
-        _ => None,
-      };
-      drink_dir_opt.map(|drink_dir| {
+      map_key_to_dir(keycode).map(|drink_dir| {
         let drink_target_pos = state.char_pos + drink_dir;
-        let first_gin_at_target: Option<EntityId> = state
-          .get_entities_at(drink_target_pos)
+        state
+          .get_entities_at_projected(drink_target_pos, |entity| match entity.entity_type {
+            EntityType::Enemy {
+              enemy_type: EnemyType::Gin,
+            } => Some(()),
+            _ => None,
+          })
           .iter()
-          .filter_map(|&entity_id| {
-            let entity = state.entities.get(entity_id).unwrap();
-            match entity.entity_type {
-              EntityType::Enemy {
-                enemy_type: EnemyType::Gin,
-              } => Some(entity_id),
-              _ => None,
-            }
-          })
-          .nth(0);
-        first_gin_at_target.map(|gin_entity_id| {
-          state.entities.remove(gin_entity_id);
-          state.entities.insert(Entity {
-            pos: drink_target_pos,
-            entity_type: EntityType::Item {
-              item_type: ItemType::DeadGin,
-            },
-          })
-        });
+          .nth(0)
+          .map(|(gin_entity_id, _)| {
+            state.entities.remove(*gin_entity_id);
+            state.entities.insert(Entity {
+              pos: drink_target_pos,
+              entity_type: EntityType::Item {
+                item_type: ItemType::DeadGin,
+              },
+            })
+          });
       });
       state.active_interaction = Interaction::Walking;
     }
+  }
+}
+
+fn map_key_to_dir(keycode: Keycode) -> Option<V2I> {
+  match keycode {
+    Keycode::Up => Some(V2I::new(0, -1)),
+    Keycode::Left => Some(V2I::new(-1, 0)),
+    Keycode::Down => Some(V2I::new(0, 1)),
+    Keycode::Right => Some(V2I::new(1, 0)),
+    _ => None,
   }
 }

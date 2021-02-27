@@ -51,13 +51,10 @@ struct State {
 impl State {
   fn new() -> State {
     let rng = rand::thread_rng();
-    let game_map = GameMap {
-      map_array: [[Tile::Void; MAP_SIZE.y as usize]; MAP_SIZE.x as usize],
-    };
     let mut state = State {
       rng,
       char_pos: P2I::new(10, 5),
-      game_map,
+      game_map: GameMap::new(MAP_SIZE.x, MAP_SIZE.y),
       items: IncMap::new(),
       enemies: IncMap::new(),
       inventory: Vec::new(),
@@ -121,7 +118,7 @@ fn update(_state: &mut State, _key_status: &KeyStatus, _game_tick_counter: u32) 
 fn render(gcontext: &mut GContext, state: &State) {
   for x in 0..MAP_SIZE.x {
     for y in 0..MAP_SIZE.y {
-      let tile_name = match state.game_map.map_array[x as usize][y as usize] {
+      let tile_name = match state.game_map.get_tile(P2I::new(x as i32, y as i32)) {
         Tile::Void => None,
         Tile::Wall => Some("wall"),
         Tile::Floor => Some("floor"),

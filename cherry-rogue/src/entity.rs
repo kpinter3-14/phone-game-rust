@@ -1,15 +1,15 @@
 use game_lib::types::*;
 
 #[derive(Copy, Clone, PartialEq)]
-pub struct Entity {
+pub struct Item {
   pub pos: P2I,
-  pub entity_type: EntityType,
+  pub item_type: ItemType,
 }
 
 #[derive(Copy, Clone, PartialEq)]
-pub enum EntityType {
-  Item { item_type: ItemType },
-  Enemy { enemy_type: EnemyType },
+pub struct Enemy {
+  pub pos: P2I,
+  pub enemy_type: EnemyType,
 }
 
 #[derive(Copy, Clone, PartialEq)]
@@ -22,15 +22,6 @@ pub enum ItemType {
 #[derive(Copy, Clone, PartialEq)]
 pub enum EnemyType {
   Gin,
-}
-
-impl std::fmt::Display for EntityType {
-  fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-    match self {
-      EntityType::Item { item_type } => write!(f, "{}", item_type),
-      EntityType::Enemy { enemy_type } => write!(f, "{}", enemy_type),
-    }
-  }
 }
 
 impl std::fmt::Display for ItemType {
@@ -59,4 +50,5 @@ impl std::fmt::Display for EnemyType {
   }
 }
 
-pub type EntityId = u32;
+pub type ItemId = u32;
+pub type EnemyId = u32;

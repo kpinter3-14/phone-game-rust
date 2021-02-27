@@ -28,7 +28,7 @@ fn init(gcontext: &mut GContext) {
 enum Interaction {
   Walking,
   Take {
-    available_items: Vec<(EntityId, ItemType)>,
+    available_items: Vec<(ItemId, ItemType)>,
   },
   Inventory,
   Drink,
@@ -40,7 +40,8 @@ struct State {
 
   char_pos: P2I,
   game_map: GameMap,
-  entities: IncMap<Entity>,
+  items: IncMap<Item>,
+  enemies: IncMap<Enemy>,
   inventory: Vec<ItemType>,
 
   active_interaction: Interaction,
@@ -57,7 +58,8 @@ impl State {
       rng,
       char_pos: P2I::new(10, 5),
       game_map,
-      entities: IncMap::new(),
+      items: IncMap::new(),
+      enemies: IncMap::new(),
       inventory: Vec::new(),
       active_interaction: Interaction::Walking,
       status_text: None,
@@ -66,78 +68,49 @@ impl State {
     state
   }
 
+  fn add_item(&mut self, x: i32, y: i32, item_type: ItemType) {
+    self.items.insert(Item {
+      pos: P2I::new(x, y),
+      item_type,
+    });
+  }
+
+  fn add_enemy(&mut self, x: i32, y: i32, enemy_type: EnemyType) {
+    self.enemies.insert(Enemy {
+      pos: P2I::new(x, y),
+      enemy_type,
+    });
+  }
+
   fn generate_game_map(&mut self) {
-    self.entities.insert(Entity {
-      pos: P2I::new(2, 3),
-      entity_type: EntityType::Item {
-        item_type: ItemType::Cherry,
-      },
-    });
-    self.entities.insert(Entity {
-      pos: P2I::new(3, 4),
-      entity_type: EntityType::Item {
-        item_type: ItemType::Coin,
-      },
-    });
-    self.entities.insert(Entity {
-      pos: P2I::new(3, 4),
-      entity_type: EntityType::Item {
-        item_type: ItemType::Cherry,
-      },
-    });
-    self.entities.insert(Entity {
-      pos: P2I::new(5, 5),
-      entity_type: EntityType::Enemy {
-        enemy_type: EnemyType::Gin,
-      },
-    });
+    self.add_item(2, 3, ItemType::Cherry);
+    self.add_item(3, 4, ItemType::Coin);
+    self.add_item(3, 4, ItemType::Cherry);
+    self.add_enemy(5, 5, EnemyType::Gin);
     self.game_map.add_room(2, 3, 4, 6);
     self.game_map.add_room(6, 4, 3, 1);
-    self.game_map.map_array[7][4] = Tile::Door { is_open: false };
+    self
+      .game_map
+      .set_tile(P2I::new(7, 4), Tile::Door { is_open: false });
     self.game_map.add_room(9, 2, 5, 5);
   }
 
-  fn get_entities_at(&self, pos: P2I) -> Vec<EntityId> {
-    self
-      .entities
-      .into_iter()
-      .filter(|(_, entity)| entity.pos == pos)
-      .map(|(id, _)| *id)
-      .collect()
-  }
-
-  fn get_entities_at_projected<P, B>(&self, pos: P2I, project: P) -> Vec<(EntityId, B)>
-  where
-    P: Fn(&Entity) -> Option<B>,
-  {
-    self
-      .entities
-      .into_iter()
-      .filter(|(_, entity)| entity.pos == pos)
-      .filter_map(|(id, entity)| project(entity).map(|b| (*id, b)))
-      .collect()
-  }
-
   fn process_ai(&mut self) {
-    let enemies: Vec<(EntityId, EnemyType)> = self
-      .entities
+    let rng = &mut self.rng;
+    let enemies_marked_for_movement: Vec<EnemyId> = self
+      .enemies
       .into_iter()
-      .filter_map(|(entity_id, entity)| match entity.entity_type {
-        EntityType::Enemy { enemy_type } => Some((*entity_id, enemy_type)),
-        _ => None,
-      })
+      .filter(|_| rng.gen_range(0..2) == 0)
+      .map(|(enemy_id, _)| *enemy_id)
       .collect();
-    for (entity_id, _enemy_type) in enemies {
-      let should_move = self.rng.gen_range(0..2) == 0;
-      if should_move {
-        let random_dir = self.rng.gen_range(0..=3);
-        let f = |x: i32| (x % 2) * (-1 as i32).pow(x as u32 / 2);
-        let movement_dir = V2I::new(f(random_dir), f(random_dir + 1));
-        let entity = self.entities.get_mut(entity_id).unwrap();
-        let next_pos = entity.pos + movement_dir;
-        if self.game_map.is_open_tile(next_pos) && self.char_pos != next_pos {
-          entity.pos = next_pos;
-        }
+    for enemy_id in enemies_marked_for_movement {
+      let random_dir = rng.gen_range(0..=3);
+      let f = |x: i32| (x % 2) * (-1 as i32).pow(x as u32 / 2);
+      let movement_dir = V2I::new(f(random_dir), f(random_dir + 1));
+      let enemy = self.enemies.get_mut(enemy_id).unwrap();
+      let next_pos = enemy.pos + movement_dir;
+      if self.game_map.is_open_tile(next_pos) && self.char_pos != next_pos {
+        enemy.pos = next_pos;
       }
     }
   }
@@ -173,12 +146,21 @@ fn render(gcontext: &mut GContext, state: &State) {
     });
   }
 
-  for (_, entity) in &state.entities {
-    let entity_name = entity.entity_type.to_string();
+  for (_, enemy) in &state.enemies {
+    let enemy_name = enemy.enemy_type.to_string();
     gcontext.draw_sprite(
-      entity.pos.x * TILE_SIZE as i32,
-      entity.pos.y * TILE_SIZE as i32,
-      &entity_name,
+      enemy.pos.x * TILE_SIZE as i32,
+      enemy.pos.y * TILE_SIZE as i32,
+      &enemy_name,
+    );
+  }
+
+  for (_, item) in &state.items {
+    let item_name = item.item_type.to_string();
+    gcontext.draw_sprite(
+      item.pos.x * TILE_SIZE as i32,
+      item.pos.y * TILE_SIZE as i32,
+      &item_name,
     );
   }
   gcontext.draw_sprite(
@@ -193,8 +175,8 @@ fn render(gcontext: &mut GContext, state: &State) {
         .iter()
         .enumerate()
         .map(|(ix, (_, item_type))| {
-          let entity_name = item_type.to_string();
-          ((ix as u8 + 'a' as u8) as char).to_string() + " " + &entity_name
+          let item_name = item_type.to_string();
+          ((ix as u8 + 'a' as u8) as char).to_string() + " " + &item_name
         })
         .collect();
       lines.insert(0, "select item".to_string());
@@ -237,11 +219,11 @@ fn handle_keypress(state: &mut State, keycode: Keycode) {
     Interaction::Walking => match map_key_to_dir(keycode) {
       Some(move_dir) => {
         let next_pos = state.char_pos + move_dir;
-        let enemies_at_pos =
-          state.get_entities_at_projected(next_pos, |entity| match entity.entity_type {
-            EntityType::Enemy { enemy_type } => Some(enemy_type),
-            _ => None,
-          });
+        let enemies_at_pos: Vec<(&EnemyId, &Enemy)> = state
+          .enemies
+          .into_iter()
+          .filter(|(_, enemy)| enemy.pos == next_pos)
+          .collect();
         let no_blocking_enemy = enemies_at_pos.is_empty();
         let no_blocking_wall = state.game_map.is_open_tile(next_pos);
         if no_blocking_wall && no_blocking_enemy {
@@ -251,11 +233,12 @@ fn handle_keypress(state: &mut State, keycode: Keycode) {
       }
       None => match keycode {
         Keycode::T => {
-          let available_items: Vec<(EntityId, ItemType)> =
-            state.get_entities_at_projected(state.char_pos, |entity| match entity.entity_type {
-              EntityType::Item { item_type } => Some(item_type),
-              _ => None,
-            });
+          let available_items: Vec<(ItemId, ItemType)> = state
+            .items
+            .into_iter()
+            .filter(|(_, item)| item.pos == state.char_pos)
+            .map(|(item_id, item)| (*item_id, item.item_type))
+            .collect();
           if available_items.len() > 0 {
             state.active_interaction = Interaction::Take { available_items };
           }
@@ -279,9 +262,9 @@ fn handle_keypress(state: &mut State, keycode: Keycode) {
       if keycode == Keycode::Escape {
         state.active_interaction = Interaction::Walking;
       } else if 0 <= selection && selection < available_items.len() as i32 {
-        let (entity_id, item_type) = available_items[selection as usize];
+        let (item_id, item_type) = available_items[selection as usize];
         state.inventory.push(item_type);
-        state.entities.remove(entity_id);
+        state.items.remove(item_id);
         state.active_interaction = Interaction::Walking;
       }
     }
@@ -291,24 +274,20 @@ fn handle_keypress(state: &mut State, keycode: Keycode) {
     Interaction::Drink => {
       map_key_to_dir(keycode).map(|drink_dir| {
         let drink_target_pos = state.char_pos + drink_dir;
-        state
-          .get_entities_at_projected(drink_target_pos, |entity| match entity.entity_type {
-            EntityType::Enemy {
-              enemy_type: EnemyType::Gin,
-            } => Some(()),
-            _ => None,
+        let gin_at_target_pos = state
+          .enemies
+          .into_iter()
+          .filter(|(_, enemy)| enemy.pos == drink_target_pos && enemy.enemy_type == EnemyType::Gin)
+          .map(|(enemy_id, enemy)| (*enemy_id, *enemy))
+          .nth(0);
+
+        gin_at_target_pos.map(|(gin_id, _)| {
+          state.enemies.remove(gin_id);
+          state.items.insert(Item {
+            pos: drink_target_pos,
+            item_type: ItemType::DeadGin,
           })
-          .iter()
-          .nth(0)
-          .map(|(gin_entity_id, _)| {
-            state.entities.remove(*gin_entity_id);
-            state.entities.insert(Entity {
-              pos: drink_target_pos,
-              entity_type: EntityType::Item {
-                item_type: ItemType::DeadGin,
-              },
-            })
-          });
+        });
       });
       state.active_interaction = Interaction::Walking;
       state.status_text = None;

@@ -7,10 +7,13 @@ pub use config::*;
 
 pub mod types;
 pub use types::*;
+
 pub mod key_status;
 pub use key_status::*;
 pub mod incmap;
 pub use incmap::*;
+pub mod arr2d;
+pub use arr2d::*;
 
 pub fn get_arg(arg_name: &str) -> Option<String> {
   let prefix = String::new() + "--" + arg_name + "=";

@@ -17,7 +17,7 @@ fn main() {
   let scale = get_arg("scale")
     .map(|s| s.parse().ok())
     .flatten()
-    .unwrap_or(16);
+    .unwrap_or(8);
 
   game_lib::run(
     cell_phone_config(scale),

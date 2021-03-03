@@ -12,6 +12,8 @@ pub mod key_status;
 pub use key_status::*;
 pub mod incmap;
 pub use incmap::*;
+pub mod math_utils;
+pub use math_utils::*;
 pub mod arr2d;
 pub use arr2d::*;
 

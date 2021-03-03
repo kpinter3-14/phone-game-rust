@@ -63,6 +63,18 @@ where
     }
   }
 
+  pub fn update<F>(&mut self, f: F)
+  where
+    F: Fn(T) -> T,
+  {
+    for x in 0..self.width {
+      for y in 0..self.height {
+        let x = self.get_mut_unsafe(x, y);
+        *x = f(*x);
+      }
+    }
+  }
+
   pub fn data(&self) -> &[T] {
     &self.data_vec
   }

@@ -3,6 +3,7 @@ use crate::types::*;
 use crate::Config;
 use crate::KeyStatus;
 use sdl2::rect::Rect;
+use std::collections::HashMap;
 
 pub struct GContext<'a> {
   pub ms_since_start_last_frame: u32,
@@ -19,9 +20,40 @@ pub struct GContext<'a> {
   pub window_size: V2U,
   pub camera: P2I,
   font_sprite: sdl2::surface::Surface<'a>,
-  sprite_store: Store<sdl2::surface::Surface<'a>>,
+  surface_store: HashMap<SurfaceName, sdl2::surface::Surface<'a>>,
+  sprite_sheet_store: HashMap<SpriteSheetName, SheetData>,
+  sprite_store: HashMap<SpriteName, SpriteData>,
   pub want_to_quit: bool,
   pub key_status: KeyStatus,
+}
+
+#[derive(Eq, PartialEq, Hash, Clone)]
+pub struct SurfaceName(pub String);
+#[derive(Eq, PartialEq, Hash, Clone)]
+pub struct SpriteSheetName(pub String);
+#[derive(Eq, PartialEq, Hash, Clone)]
+pub struct SpriteName(pub String);
+
+pub fn surface(name: &str) -> SurfaceName {
+  SurfaceName(name.to_string())
+}
+
+pub fn sprite_sheet(name: &str) -> SpriteSheetName {
+  SpriteSheetName(name.to_string())
+}
+
+pub fn sprite(name: &str) -> SpriteName {
+  SpriteName(name.to_string())
+}
+
+struct SheetData {
+  surface_name: SurfaceName,
+  size: V2U,
+}
+
+struct SpriteData {
+  sheet_name: SpriteSheetName,
+  sheet_coords: V2U,
 }
 
 impl<'a> GContext<'a> {
@@ -59,8 +91,6 @@ impl<'a> GContext<'a> {
       )
       .unwrap();
 
-    let sprite_store = Store::new();
-
     let pixel_data_surface = sdl2::surface::Surface::new(
       config.screen_size.x,
       config.screen_size.y,
@@ -87,7 +117,9 @@ impl<'a> GContext<'a> {
       window_size,
       camera: P2I::new(0, 0),
       font_sprite,
-      sprite_store,
+      sprite_store: HashMap::new(),
+      sprite_sheet_store: HashMap::new(),
+      surface_store: HashMap::new(),
       want_to_quit: false,
       key_status: KeyStatus::new(),
     }
@@ -98,6 +130,24 @@ impl<'a> GContext<'a> {
       .pixel_data_surface
       .fill_rect(None, self.config.background_color)
       .unwrap();
+  }
+
+  pub fn take_screenshot(canvas: &sdl2::render::Canvas<sdl2::video::Window>) {
+    let pic_data = canvas
+      .read_pixels(None, sdl2::pixels::PixelFormatEnum::ABGR8888)
+      .unwrap();
+    let path = std::path::Path::new(r"screenshot.png");
+    let file = std::fs::File::create(path).unwrap();
+    let ref mut w = std::io::BufWriter::new(file);
+
+    let (width, height) = canvas.window().size();
+
+    let mut encoder = png::Encoder::new(w, width, height);
+    encoder.set_color(png::ColorType::RGBA);
+    encoder.set_depth(png::BitDepth::Eight);
+    let mut writer = encoder.write_header().unwrap();
+
+    writer.write_image_data(&pic_data).unwrap();
   }
 
   fn set_pixel(&mut self, x: i32, y: i32, color: sdl2::pixels::Color) {
@@ -233,20 +283,70 @@ impl<'a> GContext<'a> {
     }
   }
 
-  pub fn add_sprite(&mut self, sprite_name: &str, data: Vec<&str>) {
-    self.sprite_store.insert(
-      sprite_name.to_string(),
+  pub fn add_surface(&mut self, surface_name: SurfaceName, data: Vec<&str>) {
+    self.surface_store.insert(
+      surface_name,
       surface_from_strvec(&self.config.palette, &data),
     );
   }
 
-  pub fn draw_sprite(&mut self, x: i32, y: i32, sprite_name: &str) {
-    let sprite = self.sprite_store.get(sprite_name).unwrap();
-    sprite
+  pub fn add_sprite_sheet(&mut self, sprite_sheet_name: SpriteSheetName, sprite_sheet_path: &str, size: V2U) {
+    let surface_name = SurfaceName("#".to_owned() + &sprite_sheet_name.0);
+
+    self.surface_store.insert(
+      surface_name.clone(),
+      load_surface(sprite_sheet_path),
+    );
+
+    self.sprite_sheet_store.insert(
+      sprite_sheet_name,
+      SheetData {
+        size,
+        surface_name,
+      },
+    );
+  }
+
+  pub fn add_sprite(
+    &mut self,
+    sprite_sheet_name: SpriteSheetName,
+    sprite_name: SpriteName,
+    sheet_x: u32,
+    sheet_y: u32,
+  ) {
+    self.sprite_store.insert(
+      sprite_name,
+      SpriteData {
+        sheet_coords: V2U::new(sheet_x, sheet_y),
+        sheet_name: sprite_sheet_name,
+      },
+    );
+  }
+
+  pub fn draw_surface(&mut self, x: i32, y: i32, surface_name: SurfaceName) {
+    let surface = self.surface_store.get(&surface_name).unwrap();
+    surface
       .blit(
         None,
         &mut self.pixel_data_surface,
-        sdl2::rect::Rect::new(x, y, sprite.width(), sprite.height()),
+        sdl2::rect::Rect::new(x, y, surface.width(), surface.height()),
+      )
+      .unwrap();
+  }
+
+  pub fn draw_sprite(&mut self, x: i32, y: i32, sprite_name: SpriteName) {
+    let sprite = self.sprite_store.get(&sprite_name).unwrap();
+    let sprite_sheet = self.sprite_sheet_store.get(&sprite.sheet_name).unwrap();
+    let sprite_sheet_surface = self.surface_store.get(&sprite_sheet.surface_name).unwrap();
+    let sprite_w = sprite_sheet_surface.width() / sprite_sheet.size.x;
+    let sprite_h = sprite_sheet_surface.height() / sprite_sheet.size.y;
+    let sprite_x = sprite_w * sprite.sheet_coords.x;
+    let sprite_y = sprite_h * sprite.sheet_coords.y;
+    sprite_sheet_surface
+      .blit(
+        sdl2::rect::Rect::new(sprite_x as i32, sprite_y as i32, sprite_w, sprite_h),
+        &mut self.pixel_data_surface,
+        sdl2::rect::Rect::new(x, y, sprite_w, sprite_h),
       )
       .unwrap();
   }
@@ -314,6 +414,14 @@ fn surface_from_strvec<'a>(palette: &Palette, data: &[&str]) -> sdl2::surface::S
     }
   });
   surface
+}
+
+fn load_surface<'a>(file_path: &str) -> sdl2::surface::Surface<'a> {
+  use sdl2::image::ImageRWops;
+  sdl2::rwops::RWops::from_file(file_path, "r")
+    .unwrap()
+    .load()
+    .unwrap()
 }
 
 pub const FONT_WIDTH: u32 = 4;

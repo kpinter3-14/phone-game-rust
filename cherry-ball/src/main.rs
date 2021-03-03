@@ -31,8 +31,8 @@ fn main() {
 
 fn init(gcontext: &mut GContext) {
   #[rustfmt::skip]
-  gcontext.add_sprite(
-    "ball",
+  gcontext.add_surface(
+    surface("ball"),
     vec![
       "  ##  ",
       " #_## ",
@@ -43,8 +43,8 @@ fn init(gcontext: &mut GContext) {
     ],
   );
   #[rustfmt::skip]
-  gcontext.add_sprite(
-    "cherry",
+  gcontext.add_surface(
+    surface("cherry"),
     vec![
       "  #     ",
       " # #    ",
@@ -57,8 +57,8 @@ fn init(gcontext: &mut GContext) {
     ],
   );
   #[rustfmt::skip]
-  gcontext.add_sprite(
-    "coin",
+  gcontext.add_surface(
+    surface("coin"),
     vec![
       "  ####  ",
       " ##___# ",
@@ -329,10 +329,10 @@ fn render(gcontext: &mut GContext, state: &State) {
       Age::Finite { remaining } => remaining > COIN_FLASH_THRESHOLD as i32 || remaining % 2 == 0,
     };
     if should_draw {
-      gcontext.draw_sprite(item.pos.x as i32, item.pos.y as i32, item_name);
+      gcontext.draw_surface(item.pos.x as i32, item.pos.y as i32, surface(item_name));
     }
   }
-  gcontext.draw_sprite(state.ball_pos.x as i32, state.ball_pos.y as i32, "ball");
+  gcontext.draw_surface(state.ball_pos.x as i32, state.ball_pos.y as i32, surface("ball"));
   gcontext.draw_rect(
     state.paddle_pos.x as i32,
     state.paddle_pos.y as i32,

@@ -7,11 +7,12 @@ edition = "2018"
 [dependencies]
 rand = "0.8.2"
 emscripten_main_loop = "0.1.1"
+png = "0.16.8"
 
 [dependencies.sdl2]
 version = "0.34.3"
 default-features = false
-features = ["unsafe_textures"]
+features = ["unsafe_textures", "image"]
 
 [dependencies.cgmath]
 version = "0.18.0"

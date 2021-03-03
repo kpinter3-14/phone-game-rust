@@ -72,6 +72,7 @@ where
 
     for event in self.gcontext.event_pump.poll_iter() {
       handle_system_events(
+        &self.gcontext.canvas,
         &mut self.gcontext.want_to_quit,
         &mut self.gcontext.window_size,
         &mut self.gcontext.key_status,
@@ -114,6 +115,7 @@ where
 }
 
 fn handle_system_events(
+  canvas: &sdl2::render::Canvas<sdl2::video::Window>,
   want_to_quit: &mut bool,
   window_size: &mut V2U,
   key_status: &mut KeyStatus,
@@ -130,6 +132,10 @@ fn handle_system_events(
       keycode: Some(keycode),
       ..
     } => {
+      #[cfg(not(target_os = "emscripten"))]
+      if keycode == sdl2::keyboard::Keycode::F12 {
+        GContext::take_screenshot(canvas)
+      }
       key_status.set_key_pressed(keycode, true);
     }
     Event::KeyUp {

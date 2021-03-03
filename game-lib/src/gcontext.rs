@@ -100,6 +100,24 @@ impl<'a> GContext<'a> {
       .unwrap();
   }
 
+  pub fn take_screenshot(canvas: &sdl2::render::Canvas<sdl2::video::Window>) {
+    let pic_data = canvas
+      .read_pixels(None, sdl2::pixels::PixelFormatEnum::ABGR8888)
+      .unwrap();
+    let path = std::path::Path::new(r"screenshot.png");
+    let file = std::fs::File::create(path).unwrap();
+    let ref mut w = std::io::BufWriter::new(file);
+
+    let (width, height) = canvas.window().size();
+
+    let mut encoder = png::Encoder::new(w, width, height);
+    encoder.set_color(png::ColorType::RGBA);
+    encoder.set_depth(png::BitDepth::Eight);
+    let mut writer = encoder.write_header().unwrap();
+
+    writer.write_image_data(&pic_data).unwrap();
+  }
+
   fn set_pixel(&mut self, x: i32, y: i32, color: sdl2::pixels::Color) {
     if x < 0
       || self.config.screen_size.x as i32 <= x

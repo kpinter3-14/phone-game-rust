@@ -23,12 +23,16 @@ impl GameMap {
     }
   }
 
-  pub fn add_room(&mut self, x: i32, y: i32, w: u32, h: u32) {
+  pub fn add_rect(&mut self, x: i32, y: i32, w: u32, h: u32, t: Tile) {
     for x_ix in x..x + w as i32 {
       for y_ix in y..y + h as i32 {
-        self.map_arr2d.set(x_ix, y_ix, Tile::Floor);
+        self.map_arr2d.set(x_ix, y_ix, t);
       }
     }
+  }
+
+  pub fn add_room(&mut self, x: i32, y: i32, w: u32, h: u32) {
+    self.add_rect(x, y, w, h, Tile::Floor);
 
     for x_ix in x - 1..x + w as i32 + 1 {
       let top_row_tile: &mut Tile = &mut self.map_arr2d.get_mut_unsafe(x_ix as u32, (y - 1) as u32);

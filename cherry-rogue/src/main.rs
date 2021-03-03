@@ -36,7 +36,7 @@ enum Interaction {
 }
 
 struct State {
-  rng: rand::prelude::ThreadRng,
+  rng: ThreadRng,
 
   char_pos: P2I,
   game_map: GameMap,
@@ -79,17 +79,173 @@ impl State {
     });
   }
 
+  fn pick_random_neighbor(p: &P2I, room: &Arr2d<bool>, rng: &mut ThreadRng) -> Option<P2I> {
+    let neighbors = |p: &P2I| {
+      vec![
+        P2I::new(p.x + 1, p.y),
+        P2I::new(p.x - 1, p.y),
+        P2I::new(p.x, p.y + 1),
+        P2I::new(p.x, p.y - 1),
+      ]
+    };
+    let inside_map =
+      |p: &P2I| 0 <= p.x && p.x < room.width() as i32 && 0 <= p.y && p.y < room.height() as i32;
+    let open_room =
+      |p: &P2I, rooms: &Arr2d<bool>| rooms.get_unsafe(p.x as u32, p.y as u32) == &false;
+    neighbors(p)
+      .iter()
+      .filter(|p| inside_map(p) && open_room(p, room))
+      .choose(rng)
+      .map(|x| *x)
+  }
+
   fn generate_game_map(&mut self) {
-    self.add_item(2, 3, ItemType::Cherry);
-    self.add_item(3, 4, ItemType::Coin);
-    self.add_item(3, 4, ItemType::Cherry);
-    self.add_enemy(5, 5, EnemyType::Gin);
-    self.game_map.add_room(2, 3, 4, 6);
-    self.game_map.add_room(6, 4, 3, 1);
-    self
-      .game_map
-      .set_tile(P2I::new(7, 4), Tile::Door { is_open: false });
-    self.game_map.add_room(9, 2, 5, 5);
+    let d_x = 4;
+    let d_y = 3;
+
+    let player_start = P2I::new(
+      self.rng.gen_range(0..d_x as i32),
+      self.rng.gen_range(0..d_y as i32),
+    );
+
+    let mut rooms: Arr2d<bool> = Arr2d::new(d_x, d_y, false);
+    let mut hor_walls = Arr2d::new(d_x, d_y - 1, Separator::Wall);
+    let mut vert_walls = Arr2d::new(d_x - 1, d_y, Separator::Wall);
+
+    // dfs
+    let mut stack = Vec::new();
+    stack.push(player_start);
+    rooms.set(player_start.x as i32, player_start.y as i32, true);
+
+    while let Some(&top) = stack.last() {
+      match Self::pick_random_neighbor(&top, &rooms, &mut self.rng) {
+        Some(random_neighbor) => {
+          stack.push(random_neighbor);
+          rooms.set(random_neighbor.x as i32, random_neighbor.y as i32, true);
+          let carve_dir = random_neighbor - top;
+          if carve_dir.x == 1 {
+            // carved R
+            vert_walls.set(top.x, top.y, Separator::Nothing);
+          } else if carve_dir.x == -1 {
+            // carved L
+            vert_walls.set(random_neighbor.x, random_neighbor.y, Separator::Nothing);
+          } else if carve_dir.y == 1 {
+            // carved D
+            hor_walls.set(top.x, top.y, Separator::Nothing);
+          } else {
+            // carved U
+            hor_walls.set(random_neighbor.x, random_neighbor.y, Separator::Nothing);
+          }
+        }
+        None => {
+          stack.pop();
+          // TODO place doors and keys
+        }
+      }
+    }
+
+    let map_x_div: u32 = (MAP_SIZE.x - if MAP_SIZE.x % d_x == 0 { 1 } else { 0 }) / d_x - 1;
+    let map_y_div: u32 = (MAP_SIZE.y - if MAP_SIZE.y % d_y == 0 { 1 } else { 0 }) / d_y - 1;
+
+    let mut room_widths = Vec::new();
+    let mut room_heights = Vec::new();
+
+    for i in 0..d_x {
+      room_widths.push(map_x_div);
+    }
+    for i in 0..d_y {
+      room_heights.push(map_y_div);
+    }
+
+    let sum_scan = |state: &mut u32, x: &u32| {
+      let old_state = *state;
+      *state = *state + x + 1;
+      Some(old_state)
+    };
+    let room_x_starts: Vec<u32> = room_widths.iter().scan(1, sum_scan).collect();
+    let room_y_starts: Vec<u32> = room_heights.iter().scan(1, sum_scan).collect();
+
+    self.char_pos.x = room_x_starts[player_start.x as usize] as i32
+      + room_widths[player_start.x as usize] as i32 / 2;
+    self.char_pos.y = room_y_starts[player_start.y as usize] as i32
+      + room_heights[player_start.y as usize] as i32 / 2;
+
+    for x in 0..d_x as usize {
+      for y in 0..d_y as usize {
+        let room_pos = V2I::new(room_x_starts[x] as i32, room_y_starts[y] as i32);
+        match self.rng.gen_range(0..10) {
+          x if x == 0 => self.add_item(room_pos.x, room_pos.y, ItemType::Coin),
+          x if 0 < x && x <= 3 => self.add_item(room_pos.x, room_pos.y, ItemType::Cherry),
+          _ => (),
+        }
+        match self.rng.gen_range(0..5) {
+          x if x == 0 => self.add_enemy(room_pos.x, room_pos.y, EnemyType::Gin),
+          _ => (),
+        }
+        self.game_map.add_room(
+          room_x_starts[x] as i32,
+          room_y_starts[y] as i32,
+          room_widths[x],
+          room_heights[y],
+        );
+      }
+    }
+
+    // we place all rooms
+    for x in 0..(d_x - 1) as usize {
+      for y in 0..d_y as usize {
+        match *vert_walls.get_unsafe(x as u32, y as u32) {
+          Separator::Nothing => {
+            if self.rng.gen_range(0..=2) == 0 {
+              self.game_map.add_rect(
+                room_x_starts[x + 1] as i32 - 1,
+                room_y_starts[y] as i32 + room_heights[y] as i32 / 2,
+                1,
+                1,
+                Tile::Floor,
+              )
+            } else {
+              self.game_map.add_rect(
+                room_x_starts[x + 1] as i32 - 1,
+                room_y_starts[y] as i32,
+                1,
+                room_heights[y],
+                Tile::Floor,
+              )
+            }
+          }
+          _ => (),
+        }
+      }
+    }
+
+    // then handle the separators (nothing, doorway, door)
+    for x in 0..d_x as usize {
+      for y in 0..(d_y - 1) as usize {
+        match *hor_walls.get_unsafe(x as u32, y as u32) {
+          Separator::Nothing => {
+            if self.rng.gen_range(0..=2) == 0 {
+              self.game_map.add_rect(
+                room_x_starts[x] as i32 + room_widths[x] as i32 / 2,
+                room_y_starts[y + 1] as i32 - 1,
+                1,
+                1,
+                Tile::Floor,
+              )
+            } else {
+              self.game_map.add_rect(
+                room_x_starts[x] as i32,
+                room_y_starts[y + 1] as i32 - 1,
+                room_widths[x],
+                1,
+                Tile::Floor,
+              )
+            }
+          }
+          _ => (),
+        }
+      }
+    }
   }
 
   fn process_ai(&mut self) {
@@ -111,6 +267,13 @@ impl State {
       }
     }
   }
+}
+
+#[derive(Copy, Clone, PartialEq)]
+enum Separator {
+  Nothing,
+  Wall,
+  Door,
 }
 
 fn update(_state: &mut State, _key_status: &KeyStatus, _game_tick_counter: u32) {}

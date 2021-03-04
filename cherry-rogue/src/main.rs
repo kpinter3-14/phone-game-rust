@@ -79,7 +79,11 @@ impl State {
     });
   }
 
-  fn pick_random_neighbor(p: &P2I, room: &Arr2d<bool>, rng: &mut ThreadRng) -> Option<P2I> {
+  fn pick_random_neighbor(
+    p: &P2I,
+    room: &Arr2d<(CellType, bool)>,
+    rng: &mut ThreadRng,
+  ) -> Option<P2I> {
     let neighbors = |p: &P2I| {
       vec![
         P2I::new(p.x + 1, p.y),
@@ -90,8 +94,10 @@ impl State {
     };
     let inside_map =
       |p: &P2I| 0 <= p.x && p.x < room.width() as i32 && 0 <= p.y && p.y < room.height() as i32;
-    let open_room =
-      |p: &P2I, rooms: &Arr2d<bool>| rooms.get_unsafe(p.x as u32, p.y as u32) == &false;
+    let open_room = |p: &P2I, rooms: &Arr2d<(CellType, bool)>| {
+      let room = rooms.get_unsafe(p.x as u32, p.y as u32);
+      room.0 != CellType::Nothing && room.1 == false
+    };
     neighbors(p)
       .iter()
       .filter(|p| inside_map(p) && open_room(p, room))
@@ -108,33 +114,37 @@ impl State {
       self.rng.gen_range(0..d_y as i32),
     );
 
-    let mut rooms: Arr2d<bool> = Arr2d::new(d_x, d_y, false);
+    let mut rooms = Arr2d::new(d_x, d_y, (CellType::Room, false));
+    // void at 1, 0 for testing
+    *rooms.get_mut_unsafe(1, 0) = (CellType::Nothing, false);
     let mut hor_walls = Arr2d::new(d_x, d_y - 1, Separator::Wall);
     let mut vert_walls = Arr2d::new(d_x - 1, d_y, Separator::Wall);
 
     // dfs
     let mut stack = Vec::new();
     stack.push(player_start);
-    rooms.set(player_start.x as i32, player_start.y as i32, true);
+    *rooms.get_mut_unsafe(player_start.x as u32, player_start.y as u32) = (CellType::Room, true);
 
     while let Some(&top) = stack.last() {
       match Self::pick_random_neighbor(&top, &rooms, &mut self.rng) {
         Some(random_neighbor) => {
           stack.push(random_neighbor);
-          rooms.set(random_neighbor.x as i32, random_neighbor.y as i32, true);
+          rooms
+            .get_mut_unsafe(random_neighbor.x as u32, random_neighbor.y as u32)
+            .1 = true;
           let carve_dir = random_neighbor - top;
           if carve_dir.x == 1 {
             // carved R
-            vert_walls.set(top.x, top.y, Separator::Nothing);
+            *vert_walls.get_mut_unsafe(top.x as u32, top.y as u32) = Separator::Nothing;
           } else if carve_dir.x == -1 {
             // carved L
-            vert_walls.set(random_neighbor.x, random_neighbor.y, Separator::Nothing);
+            *vert_walls.get_mut_unsafe((top.x - 1) as u32, top.y as u32) = Separator::Nothing;
           } else if carve_dir.y == 1 {
             // carved D
-            hor_walls.set(top.x, top.y, Separator::Nothing);
-          } else {
+            *hor_walls.get_mut_unsafe(top.x as u32, top.y as u32) = Separator::Nothing;
+          } else if carve_dir.y == -1 {
             // carved U
-            hor_walls.set(random_neighbor.x, random_neighbor.y, Separator::Nothing);
+            *hor_walls.get_mut_unsafe(top.x as u32, (top.y - 1) as u32) = Separator::Nothing;
           }
         }
         None => {
@@ -170,33 +180,40 @@ impl State {
     self.char_pos.y = room_y_starts[player_start.y as usize] as i32
       + room_heights[player_start.y as usize] as i32 / 2;
 
+    // we place all rooms
     for x in 0..d_x as usize {
       for y in 0..d_y as usize {
-        let room_pos = V2I::new(room_x_starts[x] as i32, room_y_starts[y] as i32);
-        match self.rng.gen_range(0..10) {
-          x if x == 0 => self.add_item(room_pos.x, room_pos.y, ItemType::Coin),
-          x if 0 < x && x <= 3 => self.add_item(room_pos.x, room_pos.y, ItemType::Cherry),
+        match rooms.get_unsafe(x as u32, y as u32).0 {
+          CellType::Room => {
+            let room_pos = V2I::new(room_x_starts[x] as i32, room_y_starts[y] as i32);
+            match self.rng.gen_range(0..10) {
+              x if x == 0 => self.add_item(room_pos.x, room_pos.y, ItemType::Coin),
+              x if 0 < x && x <= 3 => self.add_item(room_pos.x, room_pos.y, ItemType::Cherry),
+              _ => (),
+            }
+            match self.rng.gen_range(0..5) {
+              x if x == 0 => self.add_enemy(room_pos.x, room_pos.y, EnemyType::Gin),
+              _ => (),
+            }
+            self.game_map.add_room(
+              room_x_starts[x] as i32,
+              room_y_starts[y] as i32,
+              room_widths[x],
+              room_heights[y],
+            );
+          }
           _ => (),
         }
-        match self.rng.gen_range(0..5) {
-          x if x == 0 => self.add_enemy(room_pos.x, room_pos.y, EnemyType::Gin),
-          _ => (),
-        }
-        self.game_map.add_room(
-          room_x_starts[x] as i32,
-          room_y_starts[y] as i32,
-          room_widths[x],
-          room_heights[y],
-        );
       }
     }
 
-    // we place all rooms
+    // then handle the separators (nothing, doorway, door)
     for x in 0..(d_x - 1) as usize {
       for y in 0..d_y as usize {
         match *vert_walls.get_unsafe(x as u32, y as u32) {
           Separator::Nothing => {
-            if self.rng.gen_range(0..=2) == 0 {
+            if self.rng.gen_range(0..=2) > 0 {
+              // add doorway
               self.game_map.add_rect(
                 room_x_starts[x + 1] as i32 - 1,
                 room_y_starts[y] as i32 + room_heights[y] as i32 / 2,
@@ -205,6 +222,7 @@ impl State {
                 Tile::Floor,
               )
             } else {
+              // delete wall
               self.game_map.add_rect(
                 room_x_starts[x + 1] as i32 - 1,
                 room_y_starts[y] as i32,
@@ -219,12 +237,12 @@ impl State {
       }
     }
 
-    // then handle the separators (nothing, doorway, door)
     for x in 0..d_x as usize {
       for y in 0..(d_y - 1) as usize {
         match *hor_walls.get_unsafe(x as u32, y as u32) {
           Separator::Nothing => {
-            if self.rng.gen_range(0..=2) == 0 {
+            if self.rng.gen_range(0..=2) > 0 {
+              // add doorway
               self.game_map.add_rect(
                 room_x_starts[x] as i32 + room_widths[x] as i32 / 2,
                 room_y_starts[y + 1] as i32 - 1,
@@ -233,6 +251,7 @@ impl State {
                 Tile::Floor,
               )
             } else {
+              // delete wall
               self.game_map.add_rect(
                 room_x_starts[x] as i32,
                 room_y_starts[y + 1] as i32 - 1,
@@ -274,6 +293,13 @@ enum Separator {
   Nothing,
   Wall,
   Door,
+}
+
+#[derive(Copy, Clone, PartialEq)]
+enum CellType {
+  Nothing,
+  Room,
+  Corridors,
 }
 
 fn update(_state: &mut State, _key_status: &KeyStatus, _game_tick_counter: u32) {}

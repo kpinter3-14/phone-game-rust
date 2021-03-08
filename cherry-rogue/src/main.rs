@@ -79,9 +79,13 @@ impl State {
     });
   }
 
+  fn inside_map(p: &P2I, rooms: &Arr2d<(CellType, bool)>) -> bool {
+    0 <= p.x && p.x < rooms.width() as i32 && 0 <= p.y && p.y < rooms.height() as i32
+  }
+
   fn pick_random_neighbor(
     p: &P2I,
-    room: &Arr2d<(CellType, bool)>,
+    rooms: &Arr2d<(CellType, bool)>,
     rng: &mut ThreadRng,
   ) -> Option<P2I> {
     let neighbors = |p: &P2I| {
@@ -92,15 +96,13 @@ impl State {
         P2I::new(p.x, p.y - 1),
       ]
     };
-    let inside_map =
-      |p: &P2I| 0 <= p.x && p.x < room.width() as i32 && 0 <= p.y && p.y < room.height() as i32;
     let open_room = |p: &P2I, rooms: &Arr2d<(CellType, bool)>| {
       let room = rooms.get_unsafe(p.x as u32, p.y as u32);
       room.0 != CellType::Nothing && room.1 == false
     };
     neighbors(p)
       .iter()
-      .filter(|p| inside_map(p) && open_room(p, room))
+      .filter(|p| Self::inside_map(p, rooms) && open_room(p, rooms))
       .choose(rng)
       .map(|x| *x)
   }
@@ -115,19 +117,25 @@ impl State {
     );
 
     let mut rooms = Arr2d::new(d_x, d_y, (CellType::Room, false));
-    // void at 1, 0 for testing
-    *rooms.get_mut_unsafe(1, 0) = (CellType::Nothing, false);
     let mut hor_walls = Arr2d::new(d_x, d_y - 1, Separator::Wall);
     let mut vert_walls = Arr2d::new(d_x - 1, d_y, Separator::Wall);
+
+    // random void in top row
+    *rooms.get_mut_unsafe(self.rng.gen_range(0..d_x), 0) = (CellType::Nothing, false);
+    // random void in bottom row
+    *rooms.get_mut_unsafe(self.rng.gen_range(0..d_x), d_y - 1) = (CellType::Nothing, false);
 
     // dfs
     let mut stack = Vec::new();
     stack.push(player_start);
-    *rooms.get_mut_unsafe(player_start.x as u32, player_start.y as u32) = (CellType::Room, true);
 
     while let Some(&top) = stack.last() {
       match Self::pick_random_neighbor(&top, &rooms, &mut self.rng) {
         Some(random_neighbor) => {
+          if self.rng.gen_range(1..=5) == 1 {
+            // 20% chance that if a node is not a dead-end it gets converted into corridors
+            rooms.get_mut_unsafe(top.x as u32, top.y as u32).0 = CellType::Corridors;
+          }
           stack.push(random_neighbor);
           rooms
             .get_mut_unsafe(random_neighbor.x as u32, random_neighbor.y as u32)
@@ -153,17 +161,20 @@ impl State {
         }
       }
     }
+    // player start is always a room
+    *rooms.get_mut_unsafe(player_start.x as u32, player_start.y as u32) = (CellType::Room, true);
 
+    // draw tiles to map based on game map
     let map_x_div: u32 = (MAP_SIZE.x - if MAP_SIZE.x % d_x == 0 { 1 } else { 0 }) / d_x - 1;
     let map_y_div: u32 = (MAP_SIZE.y - if MAP_SIZE.y % d_y == 0 { 1 } else { 0 }) / d_y - 1;
 
     let mut room_widths = Vec::new();
     let mut room_heights = Vec::new();
 
-    for i in 0..d_x {
+    for _ in 0..d_x {
       room_widths.push(map_x_div);
     }
-    for i in 0..d_y {
+    for _ in 0..d_y {
       room_heights.push(map_y_div);
     }
 
@@ -183,9 +194,9 @@ impl State {
     // we place all rooms
     for x in 0..d_x as usize {
       for y in 0..d_y as usize {
+        let room_pos = P2I::new(room_x_starts[x] as i32, room_y_starts[y] as i32);
         match rooms.get_unsafe(x as u32, y as u32).0 {
           CellType::Room => {
-            let room_pos = V2I::new(room_x_starts[x] as i32, room_y_starts[y] as i32);
             match self.rng.gen_range(0..10) {
               x if x == 0 => self.add_item(room_pos.x, room_pos.y, ItemType::Coin),
               x if 0 < x && x <= 3 => self.add_item(room_pos.x, room_pos.y, ItemType::Cherry),
@@ -201,6 +212,65 @@ impl State {
               room_widths[x],
               room_heights[y],
             );
+          }
+          CellType::Corridors => {
+            // TODO reduce code duplication here
+            let room = P2I::new(x as i32, y as i32);
+            let left = room + V2I::new(-1, 0);
+            if Self::inside_map(&left, &rooms) {
+              let sep = vert_walls.get_mut_unsafe((room.x - 1) as u32, room.y as u32);
+              if *sep == Separator::Nothing || *sep == Separator::Door {
+                *sep = Separator::Door;
+                self.game_map.add_room(
+                  room_x_starts[x] as i32 - 1,
+                  room_y_starts[y] as i32 + room_heights[y] as i32 / 2,
+                  room_widths[x] / 2 + 2,
+                  1,
+                );
+              }
+            }
+
+            let right = room + V2I::new(1, 0);
+            if Self::inside_map(&right, &rooms) {
+              let sep = vert_walls.get_mut_unsafe(room.x as u32, room.y as u32);
+              if *sep == Separator::Nothing || *sep == Separator::Door {
+                *sep = Separator::Door;
+                self.game_map.add_room(
+                  room_x_starts[x] as i32 + room_widths[x] as i32 / 2,
+                  room_y_starts[y] as i32 + room_heights[y] as i32 / 2,
+                  room_widths[x] / 2 + 2,
+                  1,
+                );
+              }
+            }
+
+            let up = room + V2I::new(0, -1);
+            if Self::inside_map(&up, &rooms) {
+              let sep = hor_walls.get_mut_unsafe(room.x as u32, (room.y - 1) as u32);
+              if *sep == Separator::Nothing || *sep == Separator::Door {
+                *sep = Separator::Door;
+                self.game_map.add_room(
+                  room_x_starts[x] as i32 + room_widths[x] as i32 / 2,
+                  room_y_starts[y] as i32 - 1,
+                  1,
+                  room_heights[y] / 2 + 2,
+                );
+              }
+            }
+
+            let down = room + V2I::new(0, 1);
+            if Self::inside_map(&down, &rooms) {
+              let sep = hor_walls.get_mut_unsafe(room.x as u32, room.y as u32);
+              if *sep == Separator::Nothing || *sep == Separator::Door {
+                *sep = Separator::Door;
+                self.game_map.add_room(
+                  room_x_starts[x] as i32 + room_widths[x] as i32 / 2,
+                  room_y_starts[y] as i32 + room_widths[x] as i32 / 2,
+                  1,
+                  room_heights[y] / 2 + 2,
+                );
+              }
+            }
           }
           _ => (),
         }

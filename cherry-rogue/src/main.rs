@@ -62,6 +62,7 @@ impl State {
       status_text: None,
     };
     state.generate_game_map();
+    state.game_map.update_fog(state.char_pos);
     state
   }
 
@@ -375,22 +376,25 @@ enum CellType {
 fn update(_state: &mut State, _key_status: &KeyStatus, _game_tick_counter: u32) {}
 
 fn render(gcontext: &mut GContext, state: &State) {
+  gcontext.reset_screen();
   for x in 0..MAP_SIZE.x {
     for y in 0..MAP_SIZE.y {
-      let tile_name = match state.game_map.get_tile(P2I::new(x as i32, y as i32)) {
-        Tile::Void => None,
-        Tile::Wall => Some("wall"),
-        Tile::Floor => Some("floor"),
-        Tile::Door { is_open: true } => Some("open door"),
-        Tile::Door { is_open: false } => Some("closed door"),
-      };
-      tile_name.map(|tile_name| {
-        gcontext.draw_sprite(
-          x as i32 * TILE_SIZE as i32,
-          y as i32 * TILE_SIZE as i32,
-          tile_name,
-        )
-      });
+      let tile_visibility = state.game_map.tile_visibility(P2I::new(x as i32, y as i32));
+      let screen_x = x as i32 * TILE_SIZE as i32;
+      let screen_y = y as i32 * TILE_SIZE as i32;
+      if tile_visibility != Fog::Dark {
+        let tile_name = match state.game_map.get_tile(P2I::new(x as i32, y as i32)) {
+          Tile::Void => None,
+          Tile::Wall => Some("wall"),
+          Tile::Floor => Some("floor"),
+          Tile::Door { is_open: true } => Some("open door"),
+          Tile::Door { is_open: false } => Some("closed door"),
+        };
+        tile_name.map(|tile_name| gcontext.draw_sprite(screen_x, screen_y, tile_name));
+      }
+      if tile_visibility == Fog::Seen {
+        gcontext.draw_sprite(screen_x, screen_y, "shadow");
+      }
     }
 
     state.status_text.as_ref().map(|status_text| {
@@ -403,21 +407,31 @@ fn render(gcontext: &mut GContext, state: &State) {
   }
 
   for (_, enemy) in &state.enemies {
-    let enemy_name = enemy.enemy_type.to_string();
-    gcontext.draw_sprite(
-      enemy.pos.x * TILE_SIZE as i32,
-      enemy.pos.y * TILE_SIZE as i32,
-      &enemy_name,
-    );
+    let tile_visibility = state
+      .game_map
+      .tile_visibility(P2I::new(enemy.pos.x, enemy.pos.y));
+    if tile_visibility == Fog::Visible {
+      let enemy_name = enemy.enemy_type.to_string();
+      gcontext.draw_sprite(
+        enemy.pos.x * TILE_SIZE as i32,
+        enemy.pos.y * TILE_SIZE as i32,
+        &enemy_name,
+      );
+    }
   }
 
   for (_, item) in &state.items {
-    let item_name = item.item_type.to_string();
-    gcontext.draw_sprite(
-      item.pos.x * TILE_SIZE as i32,
-      item.pos.y * TILE_SIZE as i32,
-      &item_name,
-    );
+    let tile_visibility = state
+      .game_map
+      .tile_visibility(P2I::new(item.pos.x, item.pos.y));
+    if tile_visibility == Fog::Visible {
+      let item_name = item.item_type.to_string();
+      gcontext.draw_sprite(
+        item.pos.x * TILE_SIZE as i32,
+        item.pos.y * TILE_SIZE as i32,
+        &item_name,
+      );
+    }
   }
   gcontext.draw_sprite(
     state.char_pos.x * TILE_SIZE as i32,
@@ -486,6 +500,7 @@ fn handle_keypress(state: &mut State, keycode: Keycode) {
           state.char_pos = next_pos;
         }
         state.process_ai();
+        state.game_map.update_fog(state.char_pos);
       }
       None => match keycode {
         Keycode::T => {

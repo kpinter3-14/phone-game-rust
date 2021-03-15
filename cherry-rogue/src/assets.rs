@@ -127,4 +127,18 @@ pub fn load_sprites(gcontext: &mut GContext) {
       "&&&&&&&&",
     ],
   );
+  #[rustfmt::skip]
+  gcontext.add_sprite(
+    "shadow",
+    vec![
+      "B B B B ",
+      " B B B B",
+      "B B B B ",
+      " B B B B",
+      "B B B B ",
+      " B B B B",
+      "B B B B ",
+      " B B B B",
+    ],
+  );
 }

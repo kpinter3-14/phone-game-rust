@@ -9,8 +9,16 @@ pub enum Tile {
   Door { is_open: bool },
 }
 
+#[derive(Copy, Clone, PartialEq)]
+pub enum Fog {
+  Dark,
+  Seen,
+  Visible,
+}
+
 pub struct GameMap {
   map_arr2d: Arr2d<Tile>,
+  fog_of_war: Arr2d<Fog>,
 }
 
 pub const TILE_SIZE: u32 = 8;
@@ -20,6 +28,7 @@ impl GameMap {
   pub fn new(w: u32, h: u32) -> GameMap {
     GameMap {
       map_arr2d: Arr2d::new(w, h, Tile::Void),
+      fog_of_war: Arr2d::new(w, h, Fog::Dark),
     }
   }
 
@@ -69,6 +78,58 @@ impl GameMap {
 
   pub fn is_open_tile(&self, pos: P2I) -> bool {
     let tile = *self.get_tile(pos);
-    tile == Tile::Floor || tile == Tile::Door { is_open: true }
+    !Self::blocking_tile(tile)
+  }
+
+  pub fn tile_visibility(&self, pos: P2I) -> Fog {
+    *self.fog_of_war.get(pos.x, pos.y).unwrap_or(&Fog::Dark)
+  }
+
+  fn blocking_tile(tile: Tile) -> bool {
+    match tile {
+      Tile::Door { is_open: false } => true,
+      Tile::Wall => true,
+      _ => false,
+    }
+  }
+
+  pub fn update_fog(&mut self, pos: P2I) {
+    self
+      .fog_of_war
+      .update(|x| if x == Fog::Visible { Fog::Seen } else { x });
+
+    let r = 4;
+    let map_arr2d = &self.map_arr2d;
+    let tile_is_blocking = |pos: P2I| {
+      map_arr2d
+        .get(pos.x, pos.y)
+        .map(|x| Self::blocking_tile(*x))
+        .unwrap_or(true)
+    };
+    let fog_of_war = &mut self.fog_of_war;
+    let mut mark_visible = |pos: P2I| {
+      fog_of_war.get_mut(pos.x, pos.y).map(|x| *x = Fog::Visible);
+    };
+
+    let half_tile = V2F::new(0.5, 0.5);
+
+    let pos_f = P2F::new(pos.x as f32, pos.y as f32) + half_tile;
+    let mut mark_tiles_on_ray = |x, y| {
+      dda(
+        tile_is_blocking,
+        &mut mark_visible,
+        pos_f,
+        V2F::new(x as f32, y as f32),
+        r as f32,
+      )
+    };
+    for x in -r..=r {
+      mark_tiles_on_ray(x, -r);
+      mark_tiles_on_ray(x, r);
+    }
+    for y in -r..=r {
+      mark_tiles_on_ray(-r, y);
+      mark_tiles_on_ray(r, y);
+    }
   }
 }

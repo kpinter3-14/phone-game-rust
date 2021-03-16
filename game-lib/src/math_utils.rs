@@ -65,3 +65,17 @@ where
   }
   return Some(cell_pos);
 }
+
+// https://gist.github.com/badboy/6267743#using-multiplication-for-hashing
+pub fn hash(a0: u32) -> u32 {
+  let a1 = (a0 ^ 61) ^ (a0 >> 16);
+  let a2 = a1 + (a1 << 3);
+  let a3 = a2 ^ (a2 >> 4);
+  let a4 = a3 * 0x27d4eb2d;
+  let a5 = a4 ^ (a4 >> 15);
+  a5
+}
+
+pub fn hash_v2(v: V2U) -> u32 {
+  hash(v.x ^ (v.y << 16))
+}

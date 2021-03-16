@@ -393,7 +393,12 @@ fn render(gcontext: &mut GContext, state: &State) {
         tile_name.map(|tile_name| gcontext.draw_sprite(screen_x, screen_y, tile_name));
       }
       if tile_visibility == Fog::Seen {
-        gcontext.draw_sprite(screen_x, screen_y, "shadow");
+        let shadow_name = if hash_v2(V2U::new(x, y)) % 2 == 0 {
+          "shadow0"
+        } else {
+          "shadow1"
+        };
+        gcontext.draw_sprite(screen_x, screen_y, shadow_name);
       }
     }
 

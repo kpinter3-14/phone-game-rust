@@ -5,6 +5,8 @@ use crate::KeyStatus;
 use sdl2::rect::Rect;
 use std::collections::HashMap;
 
+pub type Palette = HashMap<char, sdl2::pixels::Color>;
+
 pub struct GContext<'a> {
   pub ms_since_start_last_frame: u32,
   pub ms_until_game_tick: u32,
@@ -283,28 +285,27 @@ impl<'a> GContext<'a> {
     }
   }
 
-  pub fn add_surface(&mut self, surface_name: SurfaceName, data: Vec<&str>) {
-    self.surface_store.insert(
-      surface_name,
-      surface_from_strvec(&self.config.palette, &data),
-    );
+  pub fn add_surface(&mut self, surface_name: SurfaceName, palette: &Palette, data: Vec<&str>) {
+    self
+      .surface_store
+      .insert(surface_name, surface_from_strvec(palette, &data));
   }
 
-  pub fn add_sprite_sheet(&mut self, sprite_sheet_name: SpriteSheetName, sprite_sheet_path: &str, size: V2U) {
+  pub fn add_sprite_sheet(
+    &mut self,
+    sprite_sheet_name: SpriteSheetName,
+    sprite_sheet_path: &str,
+    size: V2U,
+  ) {
     let surface_name = SurfaceName("#".to_owned() + &sprite_sheet_name.0);
 
-    self.surface_store.insert(
-      surface_name.clone(),
-      load_surface(sprite_sheet_path),
-    );
+    self
+      .surface_store
+      .insert(surface_name.clone(), load_surface(sprite_sheet_path));
 
-    self.sprite_sheet_store.insert(
-      sprite_sheet_name,
-      SheetData {
-        size,
-        surface_name,
-      },
-    );
+    self
+      .sprite_sheet_store
+      .insert(sprite_sheet_name, SheetData { size, surface_name });
   }
 
   pub fn add_sprite(

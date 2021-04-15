@@ -30,9 +30,15 @@ fn main() {
 }
 
 fn init(gcontext: &mut GContext) {
+  let palette: Palette = [('#', DARK_COLOR), ('_', BRIGHT_COLOR)]
+    .iter()
+    .cloned()
+    .collect();
+
   #[rustfmt::skip]
   gcontext.add_surface(
     surface("ball"),
+    &palette,
     vec![
       "  ##  ",
       " #_## ",
@@ -45,6 +51,7 @@ fn init(gcontext: &mut GContext) {
   #[rustfmt::skip]
   gcontext.add_surface(
     surface("cherry"),
+    &palette,
     vec![
       "  #     ",
       " # #    ",
@@ -59,6 +66,7 @@ fn init(gcontext: &mut GContext) {
   #[rustfmt::skip]
   gcontext.add_surface(
     surface("coin"),
+    &palette,
     vec![
       "  ####  ",
       " ##___# ",
@@ -332,7 +340,11 @@ fn render(gcontext: &mut GContext, state: &State) {
       gcontext.draw_surface(item.pos.x as i32, item.pos.y as i32, surface(item_name));
     }
   }
-  gcontext.draw_surface(state.ball_pos.x as i32, state.ball_pos.y as i32, surface("ball"));
+  gcontext.draw_surface(
+    state.ball_pos.x as i32,
+    state.ball_pos.y as i32,
+    surface("ball"),
+  );
   gcontext.draw_rect(
     state.paddle_pos.x as i32,
     state.paddle_pos.y as i32,
